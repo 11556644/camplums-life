@@ -1,0 +1,549 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== 学校 ====================
+
+model School {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  products           Product[]
+  tasks              Task[]
+  orders             Order[]
+  cabinets           Cabinet[]
+  textbooks          Textbook[]
+  subscriptionPlans  SubscriptionPlan[]
+  configs            SchoolConfig[]
+  messages           Message[]
+  disputes           Dispute[]
+  userRoles          UserRole[]
+  creditScores       CreditScore[]
+  auditLogs          AuditLog[]
+  eventLogs          EventLog[]
+  wallets            Wallet[]
+}
+
+// ==================== 用户体系 ====================
+
+model User {
+  id           String   @id @default(cuid())
+  schoolId     String
+  phone        String   @unique
+  passwordHash String
+  nickname     String
+  avatar       String?
+  studentId    String?
+  department   String?
+  dormitory    String?
+  roomNumber   String?
+  enrollYear   Int?
+  status       String   @default("active") // active, banned, suspended
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  school        School         @relation(fields: [schoolId], references: [id])
+  roles         UserRole[]
+  products      Product[]      @relation("SellerProducts")
+  tasks         Task[]         @relation("PublisherTasks")
+  buyerOrders   Order[]        @relation("BuyerOrders")
+  sellerOrders  Order[]        @relation("SellerOrders")
+  ratings       Rating[]       @relation("RaterRatings")
+  receivedRatings Rating[]     @relation("RateeRatings")
+  disputes      Dispute[]      @relation("InitiatorDisputes")
+  creditScore   CreditScore?
+  wallet        Wallet?
+  sentMessages     Message[]   @relation("SentMessages")
+  receivedMessages Message[]   @relation("ReceivedMessages")
+  subscriptionOrders SubscriptionOrder[]
+  auditLogs     AuditLog[]
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  schoolId  String
+  role      String   // buyer, seller, floor_leader, service_provider, admin
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@unique([userId, role])
+  @@index([schoolId])
+}
+
+// ==================== 商品（闲置物品）====================
+
+model Product {
+  id          String   @id @default(cuid())
+  schoolId    String
+  sellerId    String
+  category    String   // electronics, clothing, books, furniture, daily, other
+  title       String
+  description String
+  price       Float
+  images      String?  // JSON array of image URLs
+  status      String   @default("active") // active, sold, removed, under_review
+  location    String?  // 模糊位置（宿舍楼）
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school   School      @relation(fields: [schoolId], references: [id])
+  seller   User        @relation("SellerProducts", fields: [sellerId], references: [id])
+  orderItems OrderItem[]
+}
+
+// ==================== 任务/服务 ====================
+
+model Task {
+  id           String   @id @default(cuid())
+  schoolId     String
+  publisherId  String
+  type         String   // errand, delivery, tutoring, skill_exchange, repair, other
+  title        String
+  description  String
+  budget       Float?
+  budgetType   String   @default("fixed") // fixed, negotiable
+  status       String   @default("open") // open, bidding, assigned, in_progress, completed, cancelled
+  location     String?
+  deadline     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  school    School     @relation(fields: [schoolId], references: [id])
+  publisher User       @relation("PublisherTasks", fields: [publisherId], references: [id])
+  orderItems OrderItem[]
+}
+
+// ==================== 统一订单 ====================
+
+model Order {
+  id            String   @id @default(cuid())
+  orderNo       String   @unique // 全局唯一业务号
+  schoolId      String
+  buyerId       String
+  sellerId      String
+  orderType     String   // product, task, subscription, storage
+  bizType       String   // 业务线: trade, textbook, market, cabinet_storage
+  status        String   @default("pending_payment")
+  // 状态机: pending_payment -> paid -> in_progress -> completed / disputed / cancelled
+  // 产品: pending_payment -> paid -> shipped -> delivered -> completed
+  // 任务: pending_payment -> paid -> in_progress -> completed
+  // 存储: pending_payment -> paid -> stored -> retrieved -> completed
+  totalAmount   Float
+  deposit       Float?
+  note          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  paidAt        DateTime?
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+
+  school    School     @relation(fields: [schoolId], references: [id])
+  buyer     User       @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller    User       @relation("SellerOrders", fields: [sellerId], references: [id])
+  items     OrderItem[]
+  payments  Payment[]
+  ratings   Rating[]
+  disputes  Dispute[]
+  cabinetBindings CabinetSlotOrder[]
+  subscriptionOrders SubscriptionOrder[]
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  productId  String?
+  taskId     String?
+  textbookId String?
+  quantity   Int     @default(1)
+  unitPrice  Float
+  totalPrice Float
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product  Product?  @relation(fields: [productId], references: [id])
+  task     Task?     @relation(fields: [taskId], references: [id])
+  textbook Textbook? @relation(fields: [textbookId], references: [id])
+}
+
+// ==================== 支付 ====================
+
+model Payment {
+  id            String   @id @default(cuid())
+  orderId       String
+  amount        Float
+  method        String   // wechat, alipay, mock
+  status        String   @default("pending") // pending, success, failed, refunded
+  transactionId String?  @unique // 支付流水号（幂等键）
+  paidAt        DateTime?
+  refundedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([transactionId])
+}
+
+// ==================== 智能柜 ====================
+
+model Cabinet {
+  id          String   @id @default(cuid())
+  schoolId    String
+  name        String
+  location    String   // 位置描述
+  totalSlots  Int
+  status      String   @default("online") // online, offline, maintenance
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school School         @relation(fields: [schoolId], references: [id])
+  slots  CabinetSlot[]
+}
+
+model CabinetSlot {
+  id         String   @id @default(cuid())
+  cabinetId  String
+  slotNumber Int
+  status     String   @default("empty") // empty, reserved, occupied, fault
+  // occupied 时可查看绑定信息
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  cabinet  Cabinet           @relation(fields: [cabinetId], references: [id])
+  logs     CabinetSlotLog[]
+  bindings CabinetSlotOrder[]
+
+  @@unique([cabinetId, slotNumber])
+}
+
+model CabinetSlotOrder {
+  id          String   @id @default(cuid())
+  slotId      String
+  orderId     String?
+  depositType String   // trade（交易寄存）, storage（付费寄存）
+  pickupCode  String   @unique // 取件码
+  status      String   @default("active") // active, retrieved, expired, cancelled
+  depositorId String
+  retrieverId String?
+  depositedAt DateTime @default(now())
+  retrievedAt DateTime?
+  expiresAt   DateTime?
+  fee         Float?
+  photo       String?  // 存入时拍照 URL
+
+  slot  CabinetSlot @relation(fields: [slotId], references: [id])
+  order Order?      @relation(fields: [orderId], references: [id])
+
+  @@index([pickupCode])
+}
+
+model CabinetSlotLog {
+  id         String   @id @default(cuid())
+  slotId     String
+  action     String   // open, close, deposit, retrieve, fault, maintenance
+  operatorId String?
+  detail     String?
+  createdAt  DateTime @default(now())
+
+  slot CabinetSlot @relation(fields: [slotId], references: [id])
+}
+
+// ==================== 教材 ====================
+
+model Textbook {
+  id        String   @id @default(cuid())
+  schoolId  String
+  isbn      String
+  title     String
+  author    String
+  publisher String
+  edition   String?
+  coverUrl  String?
+  course    String?  // 关联课程
+  department String?
+  semester  String?
+  isRequired Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school School         @relation(fields: [schoolId], references: [id])
+  copies TextbookCopy[]
+  orderItems OrderItem[]
+
+  @@unique([schoolId, isbn])
+}
+
+model TextbookCopy {
+  id          String   @id @default(cuid())
+  textbookId  String
+  copyNumber  String   // 唯一编号
+  condition   String   // new, like_new, good, acceptable, retired
+  status      String   @default("available") // available, borrowed, sanitizing, retired
+  borrowerId  String?  // 当前借阅人
+  borrowedAt  DateTime? // 借出时间
+  dueDate     DateTime? // 应还时间
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  textbook            Textbook               @relation(fields: [textbookId], references: [id])
+  inventoryTransactions InventoryTransaction[]
+  inspectionRecords   InspectionRecord[]
+
+  @@index([borrowerId])
+}
+
+model SubscriptionPlan {
+  id         String   @id @default(cuid())
+  schoolId   String
+  name       String
+  semester   String   // e.g., "2026-spring"
+  price      Float
+  deposit    Float
+  description String?
+  maxBooks   Int      @default(5)
+  freeLateDays Int    @default(3)
+  status     String   @default("active") // active, inactive
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  school  School             @relation(fields: [schoolId], references: [id])
+  orders  SubscriptionOrder[]
+}
+
+model SubscriptionOrder {
+  id         String   @id @default(cuid())
+  userId     String
+  planId     String
+  orderId    String?
+  status     String   @default("pending") // pending, active, expired, cancelled
+  startDate  DateTime?
+  endDate    DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id])
+  plan  SubscriptionPlan @relation(fields: [planId], references: [id])
+  order Order? @relation(fields: [orderId], references: [id])
+}
+
+model InventoryTransaction {
+  id           String   @id @default(cuid())
+  copyId       String
+  fromStatus   String?
+  toStatus     String
+  operatorId   String?
+  detail       String?
+  createdAt    DateTime @default(now())
+
+  copy TextbookCopy @relation(fields: [copyId], references: [id])
+}
+
+model InspectionRecord {
+  id              String   @id @default(cuid())
+  copyId          String
+  inspectorId     String?
+  conditionBefore String?
+  conditionAfter  String
+  result          String   // pass, minor_damage, major_damage, retired
+  damageFee       Float?   // 赔付金额
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  copy TextbookCopy @relation(fields: [copyId], references: [id])
+}
+
+// ==================== 评价 ====================
+
+model Rating {
+  id        String   @id @default(cuid())
+  orderId   String
+  raterId   String
+  rateeId   String
+  score     Int      // 1-5
+  content   String?
+  images    String?  // JSON array
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+  rater User  @relation("RaterRatings", fields: [raterId], references: [id])
+  ratee User  @relation("RateeRatings", fields: [rateeId], references: [id])
+}
+
+// ==================== 投诉/纠纷 ====================
+
+model Dispute {
+  id           String   @id @default(cuid())
+  orderId      String
+  schoolId     String
+  initiatorId  String
+  reason       String
+  description  String
+  evidence     String?  // JSON array of image URLs
+  status       String   @default("pending") // pending, reviewing, resolved, rejected
+  resolution   String?
+  resolvedBy   String?
+  resolvedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  order     Order  @relation(fields: [orderId], references: [id])
+  school    School @relation(fields: [schoolId], references: [id])
+  initiator User   @relation("InitiatorDisputes", fields: [initiatorId], references: [id])
+}
+
+// ==================== 信用分 ====================
+
+model CreditScore {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  schoolId   String
+  score      Int      @default(100)
+  updatedAt  DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+}
+
+// ==================== 消息 ====================
+
+model Message {
+  id         String   @id @default(cuid())
+  schoolId   String
+  senderId   String?
+  receiverId String
+  type       String   // system, order, notification, chat
+  title      String?
+  content    String
+  metadata   String?  // JSON: { images: ["url1", "url2"], orderId: "..." }
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  school   School @relation(fields: [schoolId], references: [id])
+  sender   User?  @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User   @relation("ReceivedMessages", fields: [receiverId], references: [id])
+}
+
+// ==================== 审计日志 ====================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  schoolId   String
+  action     String   // login, register, order_create, payment, status_change, credit_change, role_change
+  targetType String?  // order, user, product, cabinet, textbook
+  targetId   String?
+  detail     String?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  user   User?  @relation(fields: [userId], references: [id])
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@index([schoolId])
+}
+
+// ==================== 领域事件 ====================
+
+model EventLog {
+  id            String   @id @default(cuid())
+  schoolId      String
+  eventType     String   // order.created, order.paid, cabinet.deposited, etc.
+  aggregateType String   // order, cabinet, textbook, user
+  aggregateId   String
+  payload       String?  // JSON
+  createdAt     DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@index([aggregateType, aggregateId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@index([schoolId])
+}
+
+// ==================== 钱包 ====================
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  schoolId  String
+  balance   Float    @default(0)
+  frozen    Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school      School           @relation(fields: [schoolId], references: [id])
+  transactions WalletTransaction[]
+
+  @@index([schoolId])
+}
+
+model WalletTransaction {
+  id            String   @id @default(cuid())
+  walletId      String
+  type          String   // topup, pay, refund, withdraw
+  amount        Float
+  balanceBefore Float
+  balanceAfter  Float
+  orderId       String?
+  method        String?  // wechat, alipay, wallet
+  status        String   @default("success") // pending, success, failed
+  createdAt     DateTime @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id])
+}
+
+// ==================== 学校配置 ====================
+
+model SchoolConfig {
+  id        String   @id @default(cuid())
+  schoolId  String
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id])
+
+  @@unique([schoolId, key])
+}
+
+// ==================== 循环物流（演示用）====================
+
+model LogisticsRoute {
+  id        String   @id @default(cuid())
+  orderId   String
+  status    String   @default("in_transit") // in_transit, delivered, returned
+  currentNode Int    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nodes LogisticsNode[]
+}
+
+model LogisticsNode {
+  id         String   @id @default(cuid())
+  routeId    String
+  nodeName   String   // e.g., "发货点A", "中转站B", "收货点C"
+  sequence   Int
+  status     String   @default("pending") // pending, arrived, departed
+  arrivedAt  DateTime?
+  departedAt DateTime?
+
+  route LogisticsRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+}

@@ -39,3 +39,21 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# Uploaded files
+public/uploads/
+
+# Embedded PostgreSQL data
+.pgdata/
+
+# Legacy SQLite
+dev.db
+dev.db-journal
+prisma/dev.db
+prisma/dev.db-journal
+
+# Screenshots and temp files
+屏幕截图*.png
+屏幕截图*.jpg

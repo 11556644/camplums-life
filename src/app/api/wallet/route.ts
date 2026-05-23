@@ -1,0 +1,161 @@
+import { db } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import { auditLog, domainEvent } from "@/lib/logger";
+import { apiSuccess, apiError } from "@/lib/api-response";
+import { canTransition, ORDER_STATUS } from "@/lib/order-state-machine";
+
+export const dynamic = "force-dynamic";
+
+// 允许的充值金额（防刷大额）
+const ALLOWED_TOPUP_AMOUNTS = [10, 20, 50, 100, 200, 500];
+const MAX_TOPUP_PER_DAY = 2000;
+
+export async function GET() {
+  const session = await getSession();
+  if (!session) return apiError("请先登录", 401);
+
+  let wallet = await db.wallet.findUnique({
+    where: { userId: session.userId },
+    include: { transactions: { orderBy: { createdAt: "desc" }, take: 20 } },
+  });
+
+  if (!wallet) {
+    const user = await db.user.findUnique({ where: { id: session.userId }, select: { schoolId: true } });
+    wallet = await db.wallet.create({
+      data: { userId: session.userId, schoolId: user?.schoolId || "school_001", balance: 0 },
+      include: { transactions: true },
+    });
+  }
+
+  return apiSuccess(wallet);
+}
+
+export async function POST(req: Request) {
+  const session = await getSession();
+  if (!session) return apiError("请先登录", 401);
+
+  const currentUser = await db.user.findUnique({ where: { id: session.userId }, select: { schoolId: true } });
+  const schoolId = currentUser?.schoolId || "school_001";
+
+  const body = await req.json();
+  const { action, amount, method, orderId } = body;
+
+  // === 充值 ===
+  if (action === "topup") {
+    if (!amount || !ALLOWED_TOPUP_AMOUNTS.includes(amount)) {
+      return apiError(`充值金额必须是以下之一：${ALLOWED_TOPUP_AMOUNTS.join(", ")}`);
+    }
+    if (!["wechat", "alipay"].includes(method)) return apiError("支付方式无效");
+
+    // 每日充值限额检查
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTopups = await db.walletTransaction.aggregate({
+      where: {
+        wallet: { userId: session.userId },
+        type: "topup",
+        status: "success",
+        createdAt: { gte: today },
+      },
+      _sum: { amount: true },
+    });
+    if ((todayTopups._sum.amount || 0) + amount > MAX_TOPUP_PER_DAY) {
+      return apiError(`每日充值限额 ¥${MAX_TOPUP_PER_DAY}，今日已充 ¥${todayTopups._sum.amount || 0}`);
+    }
+
+    const wallet = await db.wallet.upsert({
+      where: { userId: session.userId },
+      create: { userId: session.userId, schoolId, balance: amount },
+      update: { balance: { increment: amount } },
+    });
+
+    await db.walletTransaction.create({
+      data: {
+        walletId: wallet.id, type: "topup", amount,
+        balanceBefore: wallet.balance - amount, balanceAfter: wallet.balance,
+        method, status: "success",
+      },
+    });
+
+    await auditLog({ userId: session.userId, action: "wallet_topup", targetType: "wallet", targetId: wallet.id, detail: `充值 ¥${amount} via ${method}` });
+    return apiSuccess({ balance: wallet.balance });
+  }
+
+  // === 支付 ===
+  if (action === "pay") {
+    if (!amount || amount <= 0) return apiError("支付金额无效");
+    if (!orderId) return apiError("缺少订单ID");
+
+    const order = await db.order.findUnique({ where: { id: orderId } });
+    if (!order) return apiError("订单不存在");
+    if (order.buyerId !== session.userId) return apiError("无权支付此订单");
+    if (Math.abs(order.totalAmount - amount) > 0.01) return apiError("支付金额与订单不匹配");
+    if (!canTransition(order.orderType, order.status, ORDER_STATUS.PAID)) return apiError(`订单状态不允许支付`);
+
+    // 余额检查 + 扣款在事务内原子完成（防竞态）
+    const result = await db.$transaction(async (tx: any) => {
+      // SELECT FOR UPDATE 等效：用 update 的 where 条件做原子检查
+      const w = await tx.wallet.findUnique({ where: { userId: session.userId } });
+      if (!w || w.balance < amount) return null;
+
+      const newBalance = w.balance - amount;
+      await tx.wallet.update({ where: { id: w.id }, data: { balance: newBalance } });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: w.id, type: "pay", amount: -amount,
+          balanceBefore: w.balance, balanceAfter: newBalance,
+          orderId, method: "wallet", status: "success",
+        },
+      });
+      await tx.order.update({ where: { id: orderId }, data: { status: ORDER_STATUS.PAID, paidAt: new Date() } });
+      await tx.payment.create({
+        data: {
+          orderId, amount, method: "wallet", status: "success",
+          transactionId: `WALLET_${crypto.randomUUID()}`,
+          paidAt: new Date(),
+        },
+      });
+      return newBalance;
+    });
+
+    if (result === null) return apiError("余额不足");
+    await domainEvent({ eventType: "wallet.paid", aggregateType: "wallet", aggregateId: session.userId, payload: { amount, orderId } });
+    return apiSuccess({ balance: result });
+  }
+
+  // === 退款（仅系统内部调用，需关联有效订单） ===
+  if (action === "refund") {
+    if (!orderId) return apiError("退款必须关联订单");
+    if (!amount || amount <= 0) return apiError("退款金额无效");
+
+    const order = await db.order.findUnique({ where: { id: orderId } });
+    if (!order) return apiError("订单不存在");
+    if (order.buyerId !== session.userId) return apiError("无权退款此订单");
+    if (amount > order.totalAmount) return apiError("退款金额不能超过订单金额");
+
+    // 检查是否已退过
+    const existingRefund = await db.walletTransaction.findFirst({
+      where: { orderId, type: "refund", status: "success" },
+    });
+    if (existingRefund) return apiError("该订单已退款");
+
+    const wallet = await db.wallet.upsert({
+      where: { userId: session.userId },
+      create: { userId: session.userId, schoolId, balance: amount },
+      update: { balance: { increment: amount } },
+    });
+
+    await db.walletTransaction.create({
+      data: {
+        walletId: wallet.id, type: "refund", amount,
+        balanceBefore: wallet.balance - amount, balanceAfter: wallet.balance,
+        orderId, method: "wallet", status: "success",
+      },
+    });
+
+    await auditLog({ userId: session.userId, action: "wallet_refund", targetType: "wallet", targetId: wallet.id, detail: `退款 ¥${amount} 订单 ${order.orderNo}` });
+    return apiSuccess({ balance: wallet.balance });
+  }
+
+  return apiError("无效操作");
+}

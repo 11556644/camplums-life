@@ -1,0 +1,285 @@
+import { db } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import { auditLog, domainEvent } from "@/lib/logger";
+import { apiSuccess, apiError } from "@/lib/api-response";
+import { canTransition, ORDER_STATUS } from "@/lib/order-state-machine";
+import { maskPhone } from "@/lib/privacy";
+
+// 获取订单详情
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session) return apiError("请先登录", 401);
+
+  const { id } = await params;
+
+  const order = await db.order.findUnique({
+    where: { id },
+    include: {
+      items: {
+        include: {
+          product: true,
+          task: true,
+        },
+      },
+      payments: true,
+      ratings: true,
+      disputes: true,
+      buyer: { select: { id: true, nickname: true, phone: true } },
+      seller: { select: { id: true, nickname: true, phone: true } },
+      cabinetBindings: {
+        include: { slot: { include: { cabinet: true } } },
+      },
+    },
+  });
+
+  if (!order) return apiError("订单不存在", 404);
+
+  // 权限检查
+  if (order.buyerId !== session.userId && order.sellerId !== session.userId) {
+    const user = await db.user.findUnique({ where: { id: session.userId } });
+    const isAdmin = user && (await db.userRole.findFirst({ where: { userId: session.userId, role: "admin" } }));
+    if (!isAdmin) return apiError("无权查看此订单", 403);
+  }
+
+  // 隐私脱敏：非管理员只能看到脱敏手机号
+  const isAdmin = await db.userRole.findFirst({ where: { userId: session.userId, role: "admin" } });
+  const isCompleted = order.status === "completed";
+  const maskedOrder = {
+    ...order,
+    buyer: order.buyer ? { ...order.buyer, phone: isAdmin ? order.buyer.phone : maskPhone(order.buyer.phone) } : order.buyer,
+    seller: order.seller ? { ...order.seller, phone: isAdmin ? order.seller.phone : maskPhone(order.seller.phone) } : order.seller,
+  };
+
+  return apiSuccess(maskedOrder);
+}
+
+// 更新订单状态（支付、发货、完成等）
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session) return apiError("请先登录", 401);
+
+  const { id } = await params;
+  const body = await req.json();
+  const { action, method } = body; // action: pay, ship, deliver, complete, cancel
+
+  const order = await db.order.findUnique({ where: { id } });
+  if (!order) return apiError("订单不存在", 404);
+
+  // 状态映射
+  const actionToStatus: Record<string, string> = {
+    pay: ORDER_STATUS.PAID,
+    ship: ORDER_STATUS.SHIPPED,
+    deliver: ORDER_STATUS.DELIVERED,
+    start: ORDER_STATUS.IN_PROGRESS,
+    complete: ORDER_STATUS.COMPLETED,
+    cancel: ORDER_STATUS.CANCELLED,
+  };
+
+  const nextStatus = actionToStatus[action];
+  if (!nextStatus) return apiError("无效操作");
+
+  // 权限检查
+  if (action === "pay" && order.buyerId !== session.userId) return apiError("只有买家可以支付");
+  if (action === "ship" && order.sellerId !== session.userId) return apiError("只有卖家可以发货");
+  if (action === "complete" && order.buyerId !== session.userId) return apiError("只有买家可以确认收货");
+  if (action === "cancel" && order.buyerId !== session.userId && order.sellerId !== session.userId) return apiError("无权操作");
+
+  // 状态机检查
+  if (!canTransition(order.orderType, order.status, nextStatus)) {
+    return apiError(`订单状态不允许从 ${order.status} 变更为 ${nextStatus}`);
+  }
+
+  // 执行状态变更
+  const updateData: Record<string, unknown> = { status: nextStatus };
+  if (nextStatus === ORDER_STATUS.PAID) updateData.paidAt = new Date();
+  if (nextStatus === ORDER_STATUS.COMPLETED) updateData.completedAt = new Date();
+  if (nextStatus === ORDER_STATUS.CANCELLED) updateData.cancelledAt = new Date();
+
+  const updated = await db.$transaction(async (tx: any) => {
+    const updatedOrder = await tx.order.update({
+      where: { id },
+      data: updateData,
+    });
+
+    // 模拟支付：创建支付记录
+    if (action === "pay") {
+      await tx.payment.create({
+        data: {
+          orderId: order.id,
+          amount: order.totalAmount,
+          method: method || "mock",
+          status: "success",
+          transactionId: `PAY_${crypto.randomUUID()}`,
+          paidAt: new Date(),
+        },
+      });
+    }
+
+    // 支付后联动订阅状态
+    if (action === "pay" && order.orderType === "subscription") {
+      await tx.subscriptionOrder.updateMany({
+        where: { orderId: order.id },
+        data: { status: "active" },
+      });
+    }
+
+    // 支付后任务订单自动进入进行中
+    if (action === "pay" && order.orderType === "task") {
+      await tx.order.update({
+        where: { id },
+        data: { status: ORDER_STATUS.IN_PROGRESS },
+      });
+      // 通知服务者
+      await tx.message.create({
+        data: {
+          schoolId: order.schoolId,
+          receiverId: order.sellerId,
+          type: "notification",
+          title: "任务已支付，请开始执行",
+          content: `订单 ${order.orderNo} 已支付，请开始执行任务。`,
+        },
+      });
+    }
+
+    // 完成订单：商品标记已售 + 卖家结算
+    if (action === "complete" && order.orderType === "product") {
+      const items = await tx.orderItem.findMany({ where: { orderId: order.id } });
+      for (const item of items) {
+        if (item.productId) {
+          await tx.product.update({ where: { id: item.productId }, data: { status: "sold" } });
+        }
+      }
+      // 结算到卖家钱包
+      const sellerWallet = await tx.wallet.findUnique({ where: { userId: order.sellerId } });
+      if (sellerWallet) {
+        await tx.wallet.update({ where: { userId: order.sellerId }, data: { balance: sellerWallet.balance + order.totalAmount } });
+        await tx.walletTransaction.create({
+          data: {
+            walletId: sellerWallet.id, type: "topup", amount: order.totalAmount,
+            balanceBefore: sellerWallet.balance, balanceAfter: sellerWallet.balance + order.totalAmount,
+            orderId: order.id, method: "settlement", status: "success",
+          },
+        });
+      }
+      // 通知卖家货款到账
+      await tx.message.create({
+        data: {
+          schoolId: order.schoolId, receiverId: order.sellerId,
+          type: "notification", title: "货款已到账",
+          content: `订单 ${order.orderNo} 已确认收货，¥${order.totalAmount} 已结算到您的钱包。`,
+        },
+      });
+    }
+
+    // 发货时自动创建物流路线
+    if (action === "ship") {
+      const route = await tx.logisticsRoute.create({
+        data: { orderId: order.id, status: "in_transit", currentNode: 0 },
+      });
+      await tx.logisticsNode.createMany({
+        data: [
+          { routeId: route.id, nodeName: "卖家发货", sequence: 0, status: "departed", departedAt: new Date() },
+          { routeId: route.id, nodeName: "校园快递中心", sequence: 1, status: "pending" },
+          { routeId: route.id, nodeName: "买家收货点", sequence: 2, status: "pending" },
+        ],
+      });
+
+      // 通知买家已发货
+      await tx.message.create({
+        data: {
+          schoolId: order.schoolId,
+          senderId: order.sellerId,
+          receiverId: order.buyerId,
+          type: "notification",
+          title: "商品已发货",
+          content: `您的订单 ${order.orderNo} 已发货，请关注物流信息`,
+        },
+      });
+    }
+
+    // 信用分联动
+    if (action === "complete") {
+      // 完成订单：双方各 +2 信用分
+      for (const uid of [order.buyerId, order.sellerId]) {
+        const cs = await tx.creditScore.findUnique({ where: { userId: uid } });
+        if (cs) await tx.creditScore.update({ where: { userId: uid }, data: { score: cs.score + 2 } });
+      }
+    }
+
+    if (action === "cancel") {
+      // 取消订单：取消方 -1 信用分
+      const cs = await tx.creditScore.findUnique({ where: { userId: session.userId } });
+      if (cs) await tx.creditScore.update({ where: { userId: session.userId }, data: { score: Math.max(0, cs.score - 1) } });
+
+      // 已支付订单取消：自动退款到钱包
+      if (order.status === ORDER_STATUS.PAID) {
+        const wallet = await tx.wallet.findUnique({ where: { userId: order.buyerId } });
+        if (wallet) {
+          await tx.wallet.update({ where: { userId: order.buyerId }, data: { balance: wallet.balance + order.totalAmount } });
+          await tx.walletTransaction.create({
+            data: {
+              walletId: wallet.id, type: "refund", amount: order.totalAmount,
+              balanceBefore: wallet.balance, balanceAfter: wallet.balance + order.totalAmount,
+              orderId: order.id, method: "wallet", status: "success",
+            },
+          });
+        }
+      }
+
+      // 商品订单取消：恢复商品为上架状态
+      if (order.orderType === "product") {
+        const items = await tx.orderItem.findMany({ where: { orderId: order.id } });
+        for (const item of items) {
+          if (item.productId) {
+            await tx.product.update({ where: { id: item.productId }, data: { status: "active" } });
+          }
+        }
+      }
+
+      // 通知对方
+      const otherId = session.userId === order.buyerId ? order.sellerId : order.buyerId;
+      await tx.message.create({
+        data: {
+          schoolId: order.schoolId, receiverId: otherId,
+          type: "notification", title: "订单已取消",
+          content: `订单 ${order.orderNo} 已被取消。${order.status === ORDER_STATUS.PAID ? "款项已退还到钱包。" : ""}`,
+        },
+      });
+    }
+
+    return updatedOrder;
+  });
+
+  await auditLog({
+    userId: session.userId,
+    action: `order_${action}`,
+    targetType: "order",
+    targetId: order.id,
+    detail: `Order ${order.orderNo} status: ${order.status} -> ${nextStatus}`,
+  });
+
+  // 信用分变更审计
+  if (action === "complete") {
+    for (const uid of [order.buyerId, order.sellerId]) {
+      await auditLog({ userId: uid, action: "credit_change", targetType: "credit_score", targetId: uid, detail: `订单完成 +2 信用分` });
+    }
+  }
+  if (action === "cancel") {
+    await auditLog({ userId: session.userId, action: "credit_change", targetType: "credit_score", targetId: session.userId, detail: `订单取消 -1 信用分` });
+  }
+
+  await domainEvent({
+    eventType: `order.${action}`,
+    aggregateType: "order",
+    aggregateId: order.id,
+    payload: { from: order.status, to: nextStatus },
+  });
+
+  return apiSuccess(updated);
+}
