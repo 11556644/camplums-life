@@ -87,7 +87,7 @@ export async function POST(req: Request) {
         status: ORDER_STATUS.PENDING_PAYMENT,
         totalAmount,
         deposit,
-        note: `${deliveryType === "cabinet" ? `智能柜自取，柜格ID: ${cabinetSlotId}` : `宿舍配送：${dormitory} ${floor || ""}层 ${roomNumber}室`}，租期${rentalDays}天，免费宽限${freeLateDays}天`,
+        note: `rentalDays=${rentalDays}|freeLateDays=${freeLateDays}|${deliveryType === "cabinet" ? `智能柜自取，柜格ID: ${cabinetSlotId}` : `宿舍配送：${dormitory} ${floor || ""}层 ${roomNumber}室`}`,
       },
     });
 
@@ -121,10 +121,8 @@ export async function POST(req: Request) {
         await tx.textbookCopy.update({
           where: { id: copy.id },
           data: {
-            status: "borrowed",
+            status: "reserved",
             borrowerId: session.userId,
-            borrowedAt: new Date(),
-            dueDate,
           },
         });
 
@@ -132,9 +130,9 @@ export async function POST(req: Request) {
           data: {
             copyId: copy.id,
             fromStatus: "available",
-            toStatus: "borrowed",
+            toStatus: "reserved",
             operatorId: session.userId,
-            detail: `借出，租期${rentalDays}天，应还：${dueDate.toLocaleDateString("zh-CN")}`,
+            detail: `预留，待支付确认，租期${rentalDays}天`,
           },
         });
       }
@@ -151,7 +149,44 @@ export async function POST(req: Request) {
       });
     }
 
-    return { order, subscriptionOrder };
+    // 智能柜预留：下单时立即锁定柜格
+    let cabinetBinding = null;
+    if (deliveryType === "cabinet" && cabinetSlotId) {
+      const slot = await tx.cabinetSlot.findUnique({
+        where: { id: cabinetSlotId },
+        include: { cabinet: true },
+      });
+      if (!slot) throw new Error("柜格不存在");
+      if (slot.status !== "empty") throw new Error("该柜格已被占用");
+
+      await tx.cabinetSlot.update({
+        where: { id: cabinetSlotId, status: "empty" },
+        data: { status: "reserved" },
+      });
+
+      const pickupCode = crypto.randomUUID().replace(/-/g, "").slice(0, 6);
+      cabinetBinding = await tx.cabinetSlotOrder.create({
+        data: {
+          slotId: cabinetSlotId,
+          orderId: order.id,
+          depositType: "storage",
+          pickupCode,
+          status: "active",
+          depositorId: session.userId,
+        },
+      });
+
+      await tx.cabinetSlotLog.create({
+        data: {
+          slotId: cabinetSlotId,
+          action: "reserve",
+          operatorId: session.userId,
+          detail: `订单预留，订单号：${orderNo}`,
+        },
+      });
+    }
+
+    return { order, subscriptionOrder, cabinetBinding };
   });
 
   await auditLog({

@@ -101,6 +101,29 @@ export async function POST() {
                 await tx.product.update({ where: { id: item.productId }, data: { status: "active" } });
               }
             }
+
+            // 释放教材副本（subscription 订单）
+            if (binding.order.orderType === "subscription") {
+              for (const item of orderItems) {
+                if (item.textbookId) {
+                  const reservedCopies = await tx.textbookCopy.findMany({
+                    where: { textbookId: item.textbookId, borrowerId: binding.order.buyerId, status: { in: ["reserved", "borrowed"] } },
+                  });
+                  for (const copy of reservedCopies) {
+                    await tx.textbookCopy.update({
+                      where: { id: copy.id },
+                      data: { status: "available", borrowerId: null, borrowedAt: null, dueDate: null },
+                    });
+                    await tx.inventoryTransaction.create({
+                      data: {
+                        copyId: copy.id, fromStatus: copy.status, toStatus: "available",
+                        detail: `柜格过期自动释放`,
+                      },
+                    });
+                  }
+                }
+              }
+            }
           }
         }
 

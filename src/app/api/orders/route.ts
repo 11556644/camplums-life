@@ -71,28 +71,43 @@ export async function POST(req: Request) {
     const totalAmount = product.price * quantity;
     const orderNo = generateOrderNo();
 
-    const order = await db.order.create({
-      data: {
-        orderNo,
-        schoolId: product.schoolId,
-        buyerId: session.userId,
-        sellerId: product.sellerId,
-        orderType: "product",
-        bizType: "trade",
-        status: ORDER_STATUS.PENDING_PAYMENT,
-        totalAmount,
-        note,
-        items: {
-          create: {
-            productId: product.id,
-            quantity,
-            unitPrice: product.price,
-            totalPrice: totalAmount,
+    // 事务内创建订单 + 预留商品（防双卖）
+    const order = await db.$transaction(async (tx: any) => {
+      // 条件更新：只有 active 状态才能下单
+      const updated = await tx.product.update({
+        where: { id: productId, status: "active" },
+        data: { status: "under_review" },
+      });
+      if (!updated) throw new Error("商品已被他人抢先下单");
+
+      return tx.order.create({
+        data: {
+          orderNo,
+          schoolId: product.schoolId,
+          buyerId: session.userId,
+          sellerId: product.sellerId,
+          orderType: "product",
+          bizType: "trade",
+          status: ORDER_STATUS.PENDING_PAYMENT,
+          totalAmount,
+          note,
+          items: {
+            create: {
+              productId: product.id,
+              quantity,
+              unitPrice: product.price,
+              totalPrice: totalAmount,
+            },
           },
         },
-      },
-      include: { items: true },
+        include: { items: true },
+      });
+    }).catch((err: Error) => {
+      if (err.message === "商品已被他人抢先下单") return null;
+      throw err;
     });
+
+    if (!order) return apiError("商品已被他人抢先下单，请刷新");
 
     await auditLog({
       userId: session.userId,

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { canTransition, ORDER_STATUS } from "@/lib/order-state-machine";
+import { onPaymentSettled } from "@/lib/settlement";
 
 export const dynamic = "force-dynamic";
 
@@ -115,6 +116,9 @@ export async function POST(req: Request) {
           paidAt: new Date(),
         },
       });
+      // 统一支付后副作用（订阅激活、柜格升级、任务跳转、通知）
+      const paidOrder = await tx.order.findUnique({ where: { id: orderId } });
+      if (paidOrder) await onPaymentSettled({ tx, order: paidOrder, userId: session.userId });
       return newBalance;
     });
 
@@ -133,28 +137,31 @@ export async function POST(req: Request) {
     if (order.buyerId !== session.userId) return apiError("无权退款此订单");
     if (amount > order.totalAmount) return apiError("退款金额不能超过订单金额");
 
-    // 检查是否已退过
-    const existingRefund = await db.walletTransaction.findFirst({
-      where: { orderId, type: "refund", status: "success" },
-    });
-    if (existingRefund) return apiError("该订单已退款");
+    // 事务内：重复检查 + 余额更新 + 记录（防 TOCTOU）
+    const result = await db.$transaction(async (tx: any) => {
+      const existingRefund = await tx.walletTransaction.findFirst({
+        where: { orderId, type: "refund", status: "success" },
+      });
+      if (existingRefund) return null;
 
-    const wallet = await db.wallet.upsert({
-      where: { userId: session.userId },
-      create: { userId: session.userId, schoolId, balance: amount },
-      update: { balance: { increment: amount } },
+      const w = await tx.wallet.findUnique({ where: { userId: session.userId } });
+      if (!w) return null;
+
+      const newBalance = w.balance + amount;
+      await tx.wallet.update({ where: { id: w.id }, data: { balance: newBalance } });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: w.id, type: "refund", amount,
+          balanceBefore: w.balance, balanceAfter: newBalance,
+          orderId, method: "wallet", status: "success",
+        },
+      });
+      return newBalance;
     });
 
-    await db.walletTransaction.create({
-      data: {
-        walletId: wallet.id, type: "refund", amount,
-        balanceBefore: wallet.balance - amount, balanceAfter: wallet.balance,
-        orderId, method: "wallet", status: "success",
-      },
-    });
-
-    await auditLog({ userId: session.userId, action: "wallet_refund", targetType: "wallet", targetId: wallet.id, detail: `退款 ¥${amount} 订单 ${order.orderNo}` });
-    return apiSuccess({ balance: wallet.balance });
+    if (result === null) return apiError("该订单已退款或钱包不存在");
+    await auditLog({ userId: session.userId, action: "wallet_refund", targetType: "wallet", targetId: orderId, detail: `退款 ¥${amount} 订单 ${order.orderNo}` });
+    return apiSuccess({ balance: result });
   }
 
   return apiError("无效操作");
