@@ -49,10 +49,13 @@ export default function AdminPage() {
   const [inspectResult, setInspectResult] = useState("pass");
   const [inspectCondition, setInspectCondition] = useState("good");
 
+  const loadingAuth = useAuthStore((s) => s.loading);
+
   useEffect(() => {
+    if (loadingAuth) return; // 等待 auth 加载完成
     if (!user || !user.roles.includes("admin")) { router.push("/"); return; }
     loadTab(tab);
-  }, [tab, user, router]);
+  }, [tab, user, router, loadingAuth]);
 
   const loadTab = async (t: string) => {
     setLoading(true);
@@ -76,7 +79,7 @@ export default function AdminPage() {
       } else if (t === "users") {
         const res = await fetch("/api/admin/users");
         const d = await res.json();
-        if (d.success) setUsers(d.data);
+        if (d.success) setUsers(d.data.users || d.data);
       } else if (t === "cabinets") {
         const res = await fetch("/api/cabinets/dashboard");
         const d = await res.json();
@@ -133,7 +136,7 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, action: ban ? "ban" : "unban" }),
+      body: JSON.stringify({ userId, status: ban ? "banned" : "active" }),
     });
     const d = await res.json();
     if (d.success) { toast.success(ban ? "已封禁" : "已解封"); loadTab("users"); } else toast.error(d.error);
@@ -204,6 +207,7 @@ export default function AdminPage() {
     } else toast.error(d.error);
   };
 
+  if (loadingAuth) return <div className="container mx-auto px-4 py-12 text-center text-gray-400">验证权限中...</div>;
   if (!user || !user.roles.includes("admin")) return null;
 
   const tabs = [

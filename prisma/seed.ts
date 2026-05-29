@@ -6,8 +6,8 @@ const db = new PrismaClient();
 async function main() {
   console.log("Seeding database...");
 
-  // 清空所有表（按依赖顺序）
-  await db.$executeRaw`TRUNCATE TABLE "ForumLike", "ForumFavorite", "ForumComment", "ForumPost", "ForumBoard", "LogisticsNode", "LogisticsRoute", "InventoryTransaction", "InspectionRecord", "TextbookCopy", "Textbook", "CabinetSlotLog", "CabinetSlotOrder", "CabinetSlot", "Cabinet", "Dispute", "Rating", "Message", "WalletTransaction", "Wallet", "EventLog", "AuditLog", "CreditScore", "UserRole", "OrderItem", "Order", "SubscriptionOrder", "SubscriptionPlan", "SchoolConfig", "Task", "Product", "User", "School" CASCADE`;
+  // 清空所有表（按依赖顺序，含所有模型）
+  await db.$executeRaw`TRUNCATE TABLE "ForumLike", "ForumFavorite", "ForumComment", "ForumPost", "ForumBoard", "LogisticsNode", "LogisticsRoute", "InventoryTransaction", "InspectionRecord", "TextbookCopy", "Textbook", "CabinetSlotLog", "CabinetSlotOrder", "CabinetSlot", "Cabinet", "Dispute", "Rating", "Message", "WalletTransaction", "Wallet", "EventLog", "AuditLog", "CreditScore", "UserRole", "OrderItem", "Payment", "Order", "SubscriptionOrder", "SubscriptionPlan", "SchoolConfig", "Task", "Product", "ProductFavorite", "User", "School" CASCADE`;
 
   // ==================== 学校 ====================
   const school = await db.school.create({
@@ -89,9 +89,10 @@ async function main() {
     },
   });
 
-  // 角色分配
+  // 角色分配（admin 同时拥有 buyer 角色以使用基础功能）
   const roles = [
     { userId: admin.id, schoolId: school.id, role: "admin" },
+    { userId: admin.id, schoolId: school.id, role: "buyer" },
     { userId: seller.id, schoolId: school.id, role: "seller" },
     { userId: seller.id, schoolId: school.id, role: "buyer" },
     { userId: buyer.id, schoolId: school.id, role: "buyer" },
