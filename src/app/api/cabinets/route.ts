@@ -34,21 +34,22 @@ export async function POST(req: Request) {
   if (!slotId || !depositType) return apiError("缺少必要参数");
   if (!["trade", "storage"].includes(depositType)) return apiError("寄存类型无效");
 
-  const slot = await db.cabinetSlot.findUnique({
-    where: { id: slotId },
-    include: { cabinet: true },
-  });
-  if (!slot) return apiError("柜格不存在");
-  if (slot.status !== "empty") return apiError("该柜格不可用");
-
-  const pickupCode = Math.random().toString().slice(2, 8);
+  const pickupCode = crypto.randomUUID().replace(/-/g, "").slice(0, 6);
 
   const result = await db.$transaction(async (tx: any) => {
-    // 更新柜格状态
-    await tx.cabinetSlot.update({
+    // 事务内读取 + 条件更新（防止 TOCTOU）
+    const slot = await tx.cabinetSlot.findUnique({
       where: { id: slotId },
+      include: { cabinet: true },
+    });
+    if (!slot) throw new Error("柜格不存在");
+    if (slot.status !== "empty") throw new Error("该柜格不可用");
+
+    const updated = await tx.cabinetSlot.update({
+      where: { id: slotId, status: "empty" },
       data: { status: "occupied" },
     });
+    if (!updated) throw new Error("柜格已被占用");
 
     // 创建柜格-订单绑定
     const binding = await tx.cabinetSlotOrder.create({
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return binding;
+    return { binding, cabinetName: slot.cabinet.name, slotNumber: slot.slotNumber };
   });
 
   await auditLog({
@@ -100,7 +101,7 @@ export async function POST(req: Request) {
     action: "cabinet_deposit",
     targetType: "cabinet",
     targetId: slotId,
-    detail: `存入柜格 ${slot.cabinet.name} #${slot.slotNumber}`,
+    detail: `存入柜格 ${result.cabinetName} #${result.slotNumber}`,
   });
 
   await domainEvent({

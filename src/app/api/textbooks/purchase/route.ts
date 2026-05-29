@@ -6,13 +6,6 @@ import { apiSuccess, apiError } from "@/lib/api-response";
 import { generateOrderNo, ORDER_STATUS } from "@/lib/order-state-machine";
 import { z } from "zod";
 
-const RENTAL_OPTIONS = [
-  { days: 30, label: "1个月", priceMultiplier: 0.35 },
-  { days: 90, label: "1学期", priceMultiplier: 0.75 },
-  { days: 120, label: "标准学期", priceMultiplier: 1.0 },
-  { days: 365, label: "1学年", priceMultiplier: 1.6 },
-];
-
 const purchaseSchema = z.object({
   items: z.array(z.object({
     textbookId: z.string(),
@@ -41,7 +34,7 @@ export async function POST(req: Request) {
   if (deliveryType === "dormitory" && (!dormitory || !roomNumber)) return apiError("请填写宿舍信息");
 
   // 根据租期计算价格
-  let baseUnitPrice: number;
+  let unitPrice: number;
   let plan: { id: string; deposit: number; freeLateDays: number; price: number; maxBooks: number } | null = null;
   let deposit = 0;
   let freeLateDays = 3;
@@ -50,20 +43,20 @@ export async function POST(req: Request) {
     const foundPlan = await db.subscriptionPlan.findUnique({ where: { id: planId } });
     if (!foundPlan || foundPlan.status !== "active") return apiError("套餐不存在或已下架");
     plan = foundPlan;
-    baseUnitPrice = Math.ceil(foundPlan.price / foundPlan.maxBooks);
+    // 套餐价格固定，不按租期缩放——套餐本身就是学期价
+    unitPrice = Math.ceil(foundPlan.price / foundPlan.maxBooks);
     deposit = foundPlan.deposit;
     freeLateDays = foundPlan.freeLateDays;
   } else {
     const plans = await db.subscriptionPlan.findMany({ where: { status: "active" }, take: 1 });
-    baseUnitPrice = plans.length > 0 ? Math.ceil(plans[0].price / plans[0].maxBooks) : 30;
+    const basePrice = plans.length > 0 ? Math.ceil(plans[0].price / plans[0].maxBooks) : 30;
+    // 按本借阅：根据租期动态调整单价（以120天为基准）
+    const ref = 120;
+    const mult = rentalDays <= ref
+      ? 0.2 + (rentalDays / ref) * 0.8
+      : 1.0 + ((rentalDays - ref) / ref) * 0.6;
+    unitPrice = Math.max(1, Math.round(basePrice * mult));
   }
-
-  // 根据租期动态调整单价：以120天为基准，按比例计算
-  const referenceDays = 120;
-  const durationMultiplier = rentalDays <= referenceDays
-    ? 0.2 + (rentalDays / referenceDays) * 0.8  // 短租：20%基础 + 按比例
-    : 1.0 + ((rentalDays - referenceDays) / referenceDays) * 0.6; // 长租：递增但有折扣
-  const unitPrice = Math.max(1, Math.round(baseUnitPrice * durationMultiplier));
 
   const totalBooks = items.reduce((s, i) => s + i.quantity, 0);
   const totalAmount = unitPrice * totalBooks + deposit;

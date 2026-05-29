@@ -66,10 +66,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { action, method } = body; // action: pay, ship, deliver, complete, cancel
-
-  const order = await db.order.findUnique({ where: { id } });
-  if (!order) return apiError("订单不存在", 404);
+  const { action, method } = body;
 
   // 状态映射
   const actionToStatus: Record<string, string> = {
@@ -84,26 +81,31 @@ export async function PATCH(
   const nextStatus = actionToStatus[action];
   if (!nextStatus) return apiError("无效操作");
 
-  // 权限检查
-  if (action === "pay" && order.buyerId !== session.userId) return apiError("只有买家可以支付");
-  if (action === "ship" && order.sellerId !== session.userId) return apiError("只有卖家可以发货");
-  if (action === "complete" && order.buyerId !== session.userId) return apiError("只有买家可以确认收货");
-  if (action === "cancel" && order.buyerId !== session.userId && order.sellerId !== session.userId) return apiError("无权操作");
+  // 在事务内执行：读取 + 状态检查 + 更新（防止 TOCTOU）
+  const result = await db.$transaction(async (tx: any) => {
+    const order = await tx.order.findUnique({ where: { id } });
+    if (!order) throw new Error("NOT_FOUND");
 
-  // 状态机检查
-  if (!canTransition(order.orderType, order.status, nextStatus)) {
-    return apiError(`订单状态不允许从 ${order.status} 变更为 ${nextStatus}`);
-  }
+    // 权限检查
+    if (action === "pay" && order.buyerId !== session.userId) throw new Error("ONLY_BUYER_PAY");
+    if (action === "ship" && order.sellerId !== session.userId) throw new Error("ONLY_SELLER_SHIP");
+    if (action === "deliver" && order.sellerId !== session.userId) throw new Error("ONLY_SELLER_DELIVER");
+    if (action === "complete" && order.buyerId !== session.userId) throw new Error("ONLY_BUYER_COMPLETE");
+    if (action === "cancel" && order.buyerId !== session.userId && order.sellerId !== session.userId) throw new Error("NO_PERMISSION");
 
-  // 执行状态变更
-  const updateData: Record<string, unknown> = { status: nextStatus };
-  if (nextStatus === ORDER_STATUS.PAID) updateData.paidAt = new Date();
-  if (nextStatus === ORDER_STATUS.COMPLETED) updateData.completedAt = new Date();
-  if (nextStatus === ORDER_STATUS.CANCELLED) updateData.cancelledAt = new Date();
+    // 状态机检查
+    if (!canTransition(order.orderType, order.status, nextStatus)) {
+      throw new Error(`STATUS_INVALID:${order.status}->${nextStatus}`);
+    }
 
-  const updated = await db.$transaction(async (tx: any) => {
+    // 条件更新：只有状态匹配时才更新（防止并发双击）
+    const updateData: Record<string, unknown> = { status: nextStatus };
+    if (nextStatus === ORDER_STATUS.PAID) updateData.paidAt = new Date();
+    if (nextStatus === ORDER_STATUS.COMPLETED) updateData.completedAt = new Date();
+    if (nextStatus === ORDER_STATUS.CANCELLED) updateData.cancelledAt = new Date();
+
     const updatedOrder = await tx.order.update({
-      where: { id },
+      where: { id, status: order.status },
       data: updateData,
     });
 
@@ -129,7 +131,7 @@ export async function PATCH(
       });
     }
 
-    // 支付后任务订单自动进入进行中
+    // 支付后任务订单自动进入进行中（跳过 PAID 状态）
     if (action === "pay" && order.orderType === "task") {
       await tx.order.update({
         where: { id },
@@ -253,20 +255,26 @@ export async function PATCH(
       });
     }
 
-    return updatedOrder;
+    return { updatedOrder, buyerId: order.buyerId, sellerId: order.sellerId, orderNo: order.orderNo, prevStatus: order.status };
+  }).catch((err: Error) => {
+    if (err.message === "NOT_FOUND") return null;
+    if (err.message.startsWith("ONLY_") || err.message === "NO_PERMISSION") return null;
+    if (err.message.startsWith("STATUS_INVALID")) return null;
+    throw err;
   });
+
+  if (!result) return apiError("操作失败", 400);
 
   await auditLog({
     userId: session.userId,
     action: `order_${action}`,
     targetType: "order",
-    targetId: order.id,
-    detail: `Order ${order.orderNo} status: ${order.status} -> ${nextStatus}`,
+    targetId: id,
+    detail: `Order ${result.orderNo} status: ${result.prevStatus} -> ${nextStatus}`,
   });
 
-  // 信用分变更审计
   if (action === "complete") {
-    for (const uid of [order.buyerId, order.sellerId]) {
+    for (const uid of [result.buyerId, result.sellerId]) {
       await auditLog({ userId: uid, action: "credit_change", targetType: "credit_score", targetId: uid, detail: `订单完成 +2 信用分` });
     }
   }
@@ -277,9 +285,9 @@ export async function PATCH(
   await domainEvent({
     eventType: `order.${action}`,
     aggregateType: "order",
-    aggregateId: order.id,
-    payload: { from: order.status, to: nextStatus },
+    aggregateId: id,
+    payload: { from: result.prevStatus, to: nextStatus },
   });
 
-  return apiSuccess(updated);
+  return apiSuccess(result.updatedOrder);
 }

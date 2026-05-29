@@ -46,9 +46,11 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ nickname: "", department: "", dormitory: "", roomNumber: "" });
-  const [tab, setTab] = useState<"orders" | "published" | "tasks" | "favorites">("orders");
+  const [tab, setTab] = useState<"orders" | "published" | "tasks" | "favorites" | "productFav">("orders");
   const [favorites, setFavorites] = useState<Array<{ id: string; title: string; content: string; board: { id: string; name: string }; likeCount: number; commentCount: number; createdAt: string }>>([]);
   const [loadingFav, setLoadingFav] = useState(false);
+  const [productFavs, setProductFavs] = useState<Array<{ id: string; title: string; price: number; status: string; images: string[]; isExpired: boolean; category: string }>>([]);
+  const [loadingProdFav, setLoadingProdFav] = useState(false);
 
   useEffect(() => {
     if (!user) { router.push("/login"); return; }
@@ -74,6 +76,15 @@ export default function ProfilePage() {
       setLoadingFav(false);
     }).catch(() => setLoadingFav(false));
   }, [tab, favorites.length]);
+
+  useEffect(() => {
+    if (tab !== "productFav" || productFavs.length > 0) return;
+    setLoadingProdFav(true);
+    fetch("/api/products/favorites").then(r => r.json()).then(d => {
+      if (d.success) setProductFavs(d.data);
+      setLoadingProdFav(false);
+    }).catch(() => setLoadingProdFav(false));
+  }, [tab, productFavs.length]);
 
   const [saving, setSaving] = useState(false);
 
@@ -150,16 +161,17 @@ export default function ProfilePage() {
         <Link href="/messages"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">🔔</div><div className="text-sm font-medium">消息通知</div></CardContent></Card></Link>
         <Link href="/disputes"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">⚠️</div><div className="text-sm font-medium">投诉记录</div></CardContent></Card></Link>
         <button onClick={() => setTab("favorites")} className="text-left"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">⭐</div><div className="text-sm font-medium">贴吧收藏</div></CardContent></Card></button>
+        <button onClick={() => setTab("productFav")} className="text-left"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">🛒</div><div className="text-sm font-medium">商品收藏</div></CardContent></Card></button>
       </div>
 
       {/* 我的发布 */}
       <Card>
         <CardHeader>
           <div className="flex gap-4 border-b">
-            {(["orders", "published", "tasks", "favorites"] as const).map(t => (
+            {(["orders", "published", "tasks", "favorites", "productFav"] as const).map(t => (
               <button key={t} onClick={() => setTab(t)}
                 className={`pb-2 text-sm font-medium border-b-2 transition-colors ${tab === t ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"}`}>
-                {t === "orders" ? "我的订单" : t === "published" ? "发布商品" : t === "tasks" ? "发布任务" : "贴吧收藏"}
+                {t === "orders" ? "我的订单" : t === "published" ? "发布商品" : t === "tasks" ? "发布任务" : t === "favorites" ? "贴吧收藏" : "商品收藏"}
               </button>
             ))}
           </div>
@@ -219,6 +231,22 @@ export default function ProfilePage() {
                         <span>👍 {f.likeCount}</span>
                         <span>💬 {f.commentCount}</span>
                       </div>
+                    </Link>
+                  ))
+              }
+            </div>
+          )}
+          {tab === "productFav" && (
+            <div className="space-y-2">
+              {loadingProdFav ? <p className="text-gray-400 text-sm">加载中...</p> :
+                productFavs.length === 0 ? <p className="text-gray-400 text-sm">暂无商品收藏</p> :
+                  productFavs.map(p => (
+                    <Link key={p.id} href={`/products/${p.id}`} className={`flex items-center justify-between p-2 rounded hover:bg-gray-50 ${p.isExpired ? "opacity-50" : ""}`}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium line-clamp-1">{p.title}</span>
+                        {p.isExpired && <span className="text-xs px-1.5 py-0.5 bg-red-100 text-red-600 rounded">已下架</span>}
+                      </div>
+                      <span className="text-sm text-red-600 font-bold">¥{p.price}</span>
                     </Link>
                   ))
               }

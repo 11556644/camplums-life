@@ -36,12 +36,18 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [ordering, setOrdering] = useState(false);
   const [activePhoto, setActivePhoto] = useState(0);
+  const [favorited, setFavorited] = useState(false);
 
   useEffect(() => {
     fetch(`/api/products/${params.id}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setProduct(d.data); setLoading(false); });
-  }, [params.id]);
+    if (user) {
+      fetch(`/api/products/favorites`)
+        .then((r) => r.json())
+        .then((d) => { if (d.success) setFavorited(d.data.some((f: { id: string }) => f.id === params.id)); });
+    }
+  }, [params.id, user]);
 
   const handleOrder = async () => {
     if (!user) { router.push("/login"); return; }
@@ -63,6 +69,16 @@ export default function ProductDetailPage() {
       toast.error("下单失败");
     } finally {
       setOrdering(false);
+    }
+  };
+
+  const toggleFavorite = async () => {
+    if (!user) { router.push("/login"); return; }
+    const res = await fetch(`/api/products/${params.id}/favorite`, { method: "POST" });
+    const data = await res.json();
+    if (data.success) {
+      setFavorited(data.data.favorited);
+      toast.success(data.data.favorited ? "已收藏" : "已取消收藏");
     }
   };
 
@@ -119,9 +135,14 @@ export default function ProductDetailPage() {
           </div>
           {product.status === "active" && user?.id !== product.seller.id && (
             <div className="space-y-2">
-              <Button className="w-full" size="lg" onClick={handleOrder} disabled={ordering}>
-                {ordering ? "下单中..." : "立即购买"}
-              </Button>
+              <div className="flex gap-2">
+                <Button className="flex-1" size="lg" onClick={handleOrder} disabled={ordering}>
+                  {ordering ? "下单中..." : "立即购买"}
+                </Button>
+                <Button size="lg" variant="outline" onClick={toggleFavorite}>
+                  {favorited ? "❤️ 已收藏" : "🤍 收藏"}
+                </Button>
+              </div>
               <ChatButton
                 receiverId={product.seller.id}
                 receiverName={product.seller.nickname}

@@ -72,6 +72,7 @@ model User {
   forumComments ForumComment[] @relation("ForumCommentAuthor")
   forumLikes    ForumLike[]    @relation("ForumLikeUser")
   forumFavorites ForumFavorite[] @relation("ForumFavoriteUser")
+  productFavorites ProductFavorite[] @relation("ProductFavoriteUser")
 }
 
 model UserRole {
@@ -107,6 +108,7 @@ model Product {
   school   School      @relation(fields: [schoolId], references: [id])
   seller   User        @relation("SellerProducts", fields: [sellerId], references: [id])
   orderItems OrderItem[]
+  favorites  ProductFavorite[]
 }
 
 // ==================== 任务/服务 ====================
@@ -383,6 +385,8 @@ model Rating {
   order Order @relation(fields: [orderId], references: [id])
   rater User  @relation("RaterRatings", fields: [raterId], references: [id])
   ratee User  @relation("RateeRatings", fields: [rateeId], references: [id])
+
+  @@unique([orderId, raterId])
 }
 
 // ==================== 投诉/纠纷 ====================
@@ -627,6 +631,21 @@ model ForumFavorite {
 
   @@unique([userId, postId])
   @@index([postId])
+}
+
+// ==================== 商品收藏 ====================
+
+model ProductFavorite {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation("ProductFavoriteUser", fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([productId])
 }
 
 // ==================== 循环物流（演示用）====================

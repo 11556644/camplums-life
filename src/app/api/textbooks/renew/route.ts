@@ -33,15 +33,15 @@ export async function POST(req: Request) {
   const multiplier = RENEW_PRICES[extendDays] || 0.3;
   const renewFee = Math.round(basePrice * multiplier);
 
-  // 扣款
-  const wallet = await db.wallet.findUnique({ where: { userId: session.userId } });
-  if (!wallet || wallet.balance < renewFee) {
-    return apiError(`钱包余额不足，续借需要 ¥${renewFee}，当前余额 ¥${wallet?.balance || 0}`);
-  }
-
   const newDueDate = new Date((copy.dueDate || new Date()).getTime() + extendDays * 24 * 60 * 60 * 1000);
 
-  await db.$transaction(async (tx: any) => {
+  const result = await db.$transaction(async (tx: any) => {
+    // 事务内读取余额（防止 TOCTOU）
+    const wallet = await tx.wallet.findUnique({ where: { userId: session.userId } });
+    if (!wallet || wallet.balance < renewFee) {
+      throw new Error(`INSUFFICIENT_BALANCE:${wallet?.balance || 0}`);
+    }
+
     await tx.textbookCopy.update({
       where: { id: copyId },
       data: { dueDate: newDueDate },
@@ -73,7 +73,15 @@ export async function POST(req: Request) {
         detail: `续借${extendDays}天，费用 ¥${renewFee}，新应还：${newDueDate.toLocaleDateString("zh-CN")}`,
       },
     });
+  }).catch((err: Error) => {
+    if (err.message.startsWith("INSUFFICIENT_BALANCE")) {
+      const balance = err.message.split(":")[1];
+      return { error: `钱包余额不足，续借需要 ¥${renewFee}，当前余额 ¥${balance}` };
+    }
+    throw err;
   });
+
+  if (result && "error" in result) return apiError(result.error);
 
   await auditLog({
     userId: session.userId,
