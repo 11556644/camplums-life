@@ -22,6 +22,7 @@ interface Textbook {
   department: string | null;
   isRequired: boolean;
   originalPrice?: number | null;
+  bestCondition?: string;
   availableCount: number;
   totalCount: number;
 }
@@ -92,14 +93,42 @@ export default function TextbooksPage() {
     setSearchQuery(searchInput);
   };
 
-  const baseUnitPrice = plans.length > 0 ? Math.ceil(plans[0].price / plans[0].maxBooks) : 30;
-  const durationMultiplier = rentalDays <= 120
-    ? 0.2 + (rentalDays / 120) * 0.8
-    : 1.0 + ((rentalDays - 120) / 120) * 0.6;
-  const unitPrice = Math.max(1, Math.round(baseUnitPrice * durationMultiplier));
+  const basePlanPrice = plans.length > 0 ? Math.ceil(plans[0].price / plans[0].maxBooks) : 30;
+
+  // 每本书独立计价（原价 × 租期费率 × 成色系数）
+  const COND_MULT: Record<string, number> = { new: 1.0, like_new: 0.85, good: 0.70, acceptable: 0.55 };
+  const COND_LABEL: Record<string, string> = { new: "全新", like_new: "九成新", good: "良好", acceptable: "可接受" };
+
+  const getBookPrice = (tb: Textbook) => {
+    if (selectedPlan) return basePlanPrice;
+    const orig = tb.originalPrice || 50;
+    const cond = tb.bestCondition || "good";
+    // 分段日费率递减
+    let remaining = rentalDays;
+    let total = 0;
+    const tiers = [
+      { days: 30, rate: 0.005 },
+      { days: 60, rate: 0.003 },
+      { days: 30, rate: 0.002 },
+      { days: 245, rate: 0.001 },
+    ];
+    for (const t of tiers) {
+      if (remaining <= 0) break;
+      const d = Math.min(remaining, t.days);
+      total += orig * t.rate * d;
+      remaining -= d;
+    }
+    if (remaining > 0) total += orig * 0.0008 * remaining;
+    const base = Math.max(1, Math.round(total));
+    return Math.min(Math.round(base * (COND_MULT[cond] || 0.70)), orig);
+  };
+
   const totalItems = Object.values(selected).reduce((s, n) => s + n, 0);
   const deposit = selectedPlan ? (plans.find(p => p.id === selectedPlan)?.deposit || 0) : 0;
-  const totalPrice = totalItems * unitPrice + deposit;
+  const totalPrice = textbooks
+    .filter(tb => selected[tb.id])
+    .reduce((sum, tb) => sum + getBookPrice(tb) * (selected[tb.id] || 0), 0)
+    + deposit;
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -234,7 +263,7 @@ export default function TextbooksPage() {
       {/* 书籍列表 - 可多选 */}
       <div className="mb-8">
         <h2 className="text-lg font-semibold mb-1">{tab === "textbook" ? "选择教材" : "经典读物"}</h2>
-        <p className="text-xs text-gray-400 mb-4">借阅价 ¥{unitPrice}/本 · 租期{rentalDays}天 · 逾期 ¥2/天</p>
+        <p className="text-xs text-gray-400 mb-4">租期{rentalDays}天 · 按书定价 · 逾期 ¥2/天</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {textbooks.filter(tb => tab === "textbook" ? tb.course : !tb.course).map((tb) => {
             const isSelected = !!selected[tb.id];
@@ -261,11 +290,7 @@ export default function TextbooksPage() {
                     <span className={`text-xs px-2 py-0.5 rounded ${tb.availableCount > 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                       库存 {tb.availableCount}/{tb.totalCount}
                     </span>
-                    <div className="text-right">
-                      {tb.originalPrice && <span className="text-xs text-gray-400 line-through mr-1">原价 ¥{tb.originalPrice}</span>}
-                      <span className="font-bold text-blue-600">¥{unitPrice}</span>
-                      <span className="text-xs text-gray-400">/{rentalDays}天</span>
-                    </div>
+                    <span className="font-bold text-blue-600">¥{getBookPrice(tb)}<span className="text-xs text-gray-400 font-normal">/{rentalDays}天</span></span>
                   </div>
                 </CardContent>
               </Card>

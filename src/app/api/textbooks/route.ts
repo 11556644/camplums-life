@@ -29,11 +29,20 @@ export async function GET(req: Request) {
       orderBy: { title: "asc" },
     });
 
-    const enriched = textbooks.map((t: any) => ({
-      ...t,
-      availableCount: t.copies.filter((c) => c.status === "available").length,
-      totalCount: t.copies.length,
-    }));
+    const enriched = textbooks.map((t: any) => {
+      const available = t.copies.filter((c: any) => c.status === "available");
+      // 可用副本中最好的成色（用于定价基准）
+      const conditionOrder = ["new", "like_new", "good", "acceptable"];
+      const bestCondition = available.length > 0
+        ? available.sort((a: any, b: any) => conditionOrder.indexOf(a.condition) - conditionOrder.indexOf(b.condition))[0].condition
+        : "good";
+      return {
+        ...t,
+        availableCount: available.length,
+        totalCount: t.copies.length,
+        bestCondition,
+      };
+    });
 
     return apiSuccess(enriched);
   } catch {

@@ -14,38 +14,38 @@
 export const COMMISSION_RATES: Record<string, { rate: number; minFee: number; label: string; reason: string }> = {
   // 实体商品交易（闲鱼 0.6%，我们 5%，远低于转转 10%）
   product: {
+    rate: 0.005,
+    minFee: 0.1,
+    label: "商品交易服务费 0.5%",
+    reason: "极低费率，为智能柜拉流量，促进闲置流通",
+  },
+  // 体力跑腿服务（美团抽 15-25%，我们 5%）
+  errand: {
     rate: 0.05,
     minFee: 0.5,
-    label: "商品交易服务费 5%",
-    reason: "实体商品有主流价格锚定，抽成敏感，低费率促成交",
-  },
-  // 体力跑腿服务（美团抽 15-25%，我们 8%）
-  errand: {
-    rate: 0.08,
-    minFee: 0.5,
-    label: "跑腿服务费 8%",
+    label: "跑腿服务费 5%",
     reason: "体力服务单价低但频次高，低费率保证服务者积极性",
   },
   // 代取代送（同跑腿）
   delivery: {
-    rate: 0.08,
+    rate: 0.05,
     minFee: 0.5,
-    label: "代取代送服务费 8%",
+    label: "代取代送服务费 5%",
     reason: "同跑腿，体力服务低费率",
   },
-  // 维修服务（58到家抽 10-15%，我们 8%）
+  // 维修服务（58到家抽 10-15%，我们 5%）
   repair: {
+    rate: 0.05,
+    minFee: 1,
+    label: "维修服务费 5%",
+    reason: "维修有技术门槛但单价适中，低费率",
+  },
+  // 技能辅导（主流在线教育平台 20-30%，我们 8%）
+  tutoring: {
     rate: 0.08,
     minFee: 1,
-    label: "维修服务费 8%",
-    reason: "维修有技术门槛但单价适中，中低费率",
-  },
-  // 技能辅导（主流在线教育平台 20-30%，我们 10%）
-  tutoring: {
-    rate: 0.10,
-    minFee: 1,
-    label: "辅导服务费 10%",
-    reason: "技能类价格弹性大，对抽成不敏感，正常费率",
+    label: "辅导服务费 8%",
+    reason: "技能类价格弹性大，对抽成不敏感，适中费率",
   },
   // 技能交换（无主流对标，低费率鼓励交换）
   skill_exchange: {
@@ -86,42 +86,38 @@ export function calculateCommission(amount: number, bizType: string): { fee: num
 
 // ==================== 书籍租赁定价 ====================
 
-// 租赁月费率占原价比例（参考多抓鱼 3-5折回收再 7-8折出售的利润空间）
-export const BOOK_RENTAL_RATES = {
-  1: 0.15,   // 1个月：原价 15%
-  3: 0.35,   // 3个月（1学期）：原价 35%
-  4: 0.40,   // 标准学期（4个月）：原价 40%
-  12: 0.60,  // 1学年：原价 60%（长租折扣）
-};
+/**
+ * 书籍租赁定价算法（参考 Chegg/Amazon/多抓鱼）
+ *
+ * 核心逻辑：日费率随租期递减（鼓励长租），总额递增，硬上限=原价
+ *
+ * 参考数据：
+ * - Chegg 学期租 ≈ 原价 40-60%
+ * - Amazon 月租 ≈ 原价 15-20%
+ * - 多抓鱼 回收1-2折，售3-5折
+ *
+ * 定价公式：
+ * - 第1-30天：日费率 = 原价 × 0.5%/天（月租 ≈ 15%原价）
+ * - 第31-90天：日费率 = 原价 × 0.3%/天（月均 ≈ 9%，2个月总 ≈ 24%，3个月总 ≈ 32%）
+ * - 第91-120天：日费率 = 原价 × 0.2%/天（4个月总 ≈ 38%）
+ * - 第121-365天：日费率 = 原价 × 0.1%/天（1年总 ≈ 62%）
+ *
+ * 回本分析（以原价68元教材为例）：
+ * - 1月租: ¥10 → 7次回本（70元单次租7个月=原价）
+ * - 3月租: ¥22 → 3-4次回本
+ * - 学期租: ¥26 → 2-3次回本
+ * - 年租: ¥42 → 2次回本
+ * 书籍生命周期约3年，可循环租6-12次，利润率 100-300%
+ */
 
 // 默认书籍原价（当 Textbook 没有 originalPrice 字段时使用）
 export const DEFAULT_BOOK_ORIGINAL_PRICE: Record<string, number> = {
-  // 教材类
-  "高等数学": 68,
-  "大学物理": 59,
-  "数据结构": 49,
-  "计算机组成原理": 55,
-  "操作系统": 79,
-  "线性代数": 39,
-  "概率论": 42,
-  "信号与系统": 56,
-  "电路原理": 52,
-  "Python": 79,
-  "经济学原理": 88,
-  "管理学": 75,
-  "人工智能": 45,
-  "机器学习": 65,
-  // 课外经典
-  "百年孤独": 55,
-  "红楼梦": 60,
-  "解忧杂货店": 42,
-  "活着": 35,
-  "人类简史": 68,
-  "三体": 93,
-  "小王子": 32,
-  "挪威的森林": 38,
-  "时间简史": 45,
-  "围城": 39,
+  "高等数学": 68, "大学物理": 59, "数据结构": 49, "计算机组成原理": 55,
+  "操作系统": 79, "线性代数": 39, "概率论": 42, "信号与系统": 56,
+  "电路原理": 52, "Python": 79, "经济学原理": 88, "管理学": 75,
+  "人工智能": 45, "机器学习": 65, "百年孤独": 55, "红楼梦": 60,
+  "解忧杂货店": 42, "活着": 35, "人类简史": 68, "三体": 93,
+  "小王子": 32, "挪威的森林": 38, "时间简史": 45, "围城": 39,
 };
 
 export function getBookOriginalPrice(title: string, fallback: number = 50): number {
@@ -132,31 +128,56 @@ export function getBookOriginalPrice(title: string, fallback: number = 50): numb
 }
 
 /**
- * 计算书籍租赁价格
- * 规则：租赁价 = 原价 × 月费率，且绝对不能超过原价
+ * 计算书籍租赁价格（分段日费率递减模型）
+ * 硬上限：租赁价绝不超过原价
  */
 export function calculateBookRentalPrice(originalPrice: number, rentalDays: number): number {
-  // 按月计算，不足1个月按1个月
-  const months = Math.ceil(rentalDays / 30);
+  let remaining = rentalDays;
+  let total = 0;
 
-  // 查找最接近的费率档位
-  const rateKeys = Object.keys(BOOK_RENTAL_RATES).map(Number).sort((a, b) => a - b);
-  let rate = BOOK_RENTAL_RATES[1]; // 默认1个月费率
+  // 分段计算：每段日费率递减
+  const tiers = [
+    { days: 30, dailyRate: 0.005 },   // 1-30天：0.5%/天
+    { days: 60, dailyRate: 0.003 },   // 31-90天：0.3%/天
+    { days: 30, dailyRate: 0.002 },   // 91-120天：0.2%/天
+    { days: 245, dailyRate: 0.001 },  // 121-365天：0.1%/天
+  ];
 
-  for (const key of rateKeys) {
-    if (months >= key) {
-      rate = BOOK_RENTAL_RATES[key as keyof typeof BOOK_RENTAL_RATES];
-    }
+  for (const tier of tiers) {
+    if (remaining <= 0) break;
+    const daysInTier = Math.min(remaining, tier.days);
+    total += originalPrice * tier.dailyRate * daysInTier;
+    remaining -= daysInTier;
   }
 
-  // 超过12个月的，按比例递减（最多不超过原价 70%）
-  if (months > 12) {
-    rate = Math.min(0.70, BOOK_RENTAL_RATES[12] * (months / 12) * 0.85);
+  // 超过365天的部分，按0.08%/天
+  if (remaining > 0) {
+    total += originalPrice * 0.0008 * remaining;
   }
 
-  const price = Math.round(originalPrice * rate);
-  // 硬上限：租赁价绝不超过原价
-  return Math.min(price, originalPrice);
+  return Math.min(Math.max(1, Math.round(total)), originalPrice);
+}
+
+// 成色系数（成色越差，租价越低，参考 Chegg/Amazon 差异化定价）
+export const CONDITION_MULTIPLIER: Record<string, { rate: number; label: string }> = {
+  new:        { rate: 1.00, label: "全新" },
+  like_new:   { rate: 0.85, label: "九成新" },
+  good:       { rate: 0.70, label: "良好" },
+  acceptable: { rate: 0.55, label: "可接受" },
+};
+
+/**
+ * 计算含成色的书籍租赁价格
+ * 公式：分段日费率 × 原价 × 成色系数，硬上限=原价
+ */
+export function calculateBookRentalWithCondition(
+  originalPrice: number,
+  rentalDays: number,
+  condition: string = "good",
+): number {
+  const base = calculateBookRentalPrice(originalPrice, rentalDays);
+  const mult = CONDITION_MULTIPLIER[condition]?.rate ?? 0.70;
+  return Math.min(Math.max(1, Math.round(base * mult)), originalPrice);
 }
 
 // ==================== 智能柜定价 ====================

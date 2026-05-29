@@ -34,8 +34,7 @@ export async function POST(req: Request) {
   if (deliveryType === "cabinet" && !cabinetSlotId) return apiError("请选择智能柜");
   if (deliveryType === "dormitory" && (!dormitory || !roomNumber)) return apiError("请填写宿舍信息");
 
-  // 根据租期和原价计算价格
-  let unitPrice: number;
+  // 套餐信息
   let plan: { id: string; deposit: number; freeLateDays: number; price: number; maxBooks: number } | null = null;
   let deposit = 0;
   let freeLateDays = 3;
@@ -44,28 +43,31 @@ export async function POST(req: Request) {
     const foundPlan = await db.subscriptionPlan.findUnique({ where: { id: planId } });
     if (!foundPlan || foundPlan.status !== "active") return apiError("套餐不存在或已下架");
     plan = foundPlan;
-    // 套餐价格固定，不按租期缩放——套餐本身就是学期价
-    unitPrice = Math.ceil(foundPlan.price / foundPlan.maxBooks);
     deposit = foundPlan.deposit;
     freeLateDays = foundPlan.freeLateDays;
-  } else {
-    // 按本借阅：根据每本书的原价和租期计算，取平均值
-    const textbookIds = items.map(i => i.textbookId);
-    const textbooks = await db.textbook.findMany({
-      where: { id: { in: textbookIds } },
-      select: { id: true, title: true, originalPrice: true },
-    });
-    const priceMap = new Map(textbooks.map(t => [t.id, t.originalPrice || getBookOriginalPrice(t.title)]));
-    const totalRental = items.reduce((sum, item) => {
-      const originalPrice = priceMap.get(item.textbookId) || 50;
-      return sum + calculateBookRentalPrice(originalPrice, rentalDays) * item.quantity;
-    }, 0);
-    const totalQty = items.reduce((s, i) => s + i.quantity, 0);
-    unitPrice = Math.max(1, Math.round(totalRental / totalQty));
   }
 
+  // 获取每本书的原价，按本独立计价
+  const textbookIds = items.map(i => i.textbookId);
+  const textbookRecords = await db.textbook.findMany({
+    where: { id: { in: textbookIds } },
+    select: { id: true, title: true, originalPrice: true },
+  });
+  const priceMap = new Map(textbookRecords.map(t => [t.id, t.originalPrice || getBookOriginalPrice(t.title)]));
+
+  // 计算每本书的单价
+  const getItemPrice = (textbookId: string): number => {
+    const origPrice = priceMap.get(textbookId) || 50;
+    if (planId && plan) {
+      // 套餐价：按套餐均摊，但不超过原价
+      return Math.min(Math.ceil(plan.price / plan.maxBooks), origPrice);
+    }
+    // 按本借阅：使用定价算法，硬上限原价
+    return calculateBookRentalPrice(origPrice, rentalDays);
+  };
+
+  const totalAmount = items.reduce((sum, item) => sum + getItemPrice(item.textbookId) * item.quantity, 0) + deposit;
   const totalBooks = items.reduce((s, i) => s + i.quantity, 0);
-  const totalAmount = unitPrice * totalBooks + deposit;
 
   const user = await db.user.findUnique({ where: { id: session.userId } });
   if (!user) return apiError("用户不存在");
@@ -137,13 +139,14 @@ export async function POST(req: Request) {
         });
       }
 
+      const bookPrice = getItemPrice(item.textbookId);
       await tx.orderItem.create({
         data: {
           orderId: order.id,
           textbookId: item.textbookId,
           quantity: item.quantity,
-          unitPrice,
-          totalPrice: unitPrice * item.quantity,
+          unitPrice: bookPrice,
+          totalPrice: bookPrice * item.quantity,
         },
       });
     }
@@ -166,5 +169,5 @@ export async function POST(req: Request) {
     payload: { orderNo, totalAmount, totalBooks, rentalDays, dueDate: dueDate.toISOString() },
   });
 
-  return apiSuccess({ ...result.order, unitPrice, rentalDays, dueDate });
+  return apiSuccess({ ...result.order, rentalDays, dueDate });
 }
