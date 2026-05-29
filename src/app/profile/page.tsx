@@ -143,7 +143,7 @@ export default function ProfilePage() {
       {/* 快捷入口 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Link href="/orders"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">📦</div><div className="text-sm font-medium">我的订单</div></CardContent></Card></Link>
-        <Link href="/textbooks/my"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">📖</div><div className="text-sm font-medium">我的教材</div></CardContent></Card></Link>
+        <Link href="/textbooks/my"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">📖</div><div className="text-sm font-medium">我的借阅</div></CardContent></Card></Link>
         <Link href="/subscriptions/my"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">📋</div><div className="text-sm font-medium">我的订阅</div></CardContent></Card></Link>
         <Link href="/wallet"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">💰</div><div className="text-sm font-medium">钱包</div><div className="text-xs text-gray-400">¥{profile.wallet?.balance ?? 0}</div></CardContent></Card></Link>
         <Link href="/chats"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">💬</div><div className="text-sm font-medium">聊天</div></CardContent></Card></Link>

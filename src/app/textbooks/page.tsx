@@ -39,6 +39,7 @@ interface Plan {
   deposit: number;
   maxBooks: number;
   description: string | null;
+  freeLateDays?: number;
 }
 
 export default function TextbooksPage() {
@@ -59,6 +60,14 @@ export default function TextbooksPage() {
   const [submitting, setSubmitting] = useState(false);
   const [tab, setTab] = useState<"textbook" | "extracurricular">("textbook");
   const [selectedPlan, setSelectedPlan] = useState<string>("");
+  const [rentalDays, setRentalDays] = useState(120);
+
+  const RENTAL_OPTIONS = [
+    { days: 30, label: "1个月", multiplier: 0.35 },
+    { days: 90, label: "1学期", multiplier: 0.75 },
+    { days: 120, label: "标准学期", multiplier: 1.0 },
+    { days: 365, label: "1学年", multiplier: 1.6 },
+  ];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,9 +91,14 @@ export default function TextbooksPage() {
     setSearchQuery(searchInput);
   };
 
-  const unitPrice = plans.length > 0 ? Math.ceil(plans[0].price / plans[0].maxBooks) : 30;
+  const baseUnitPrice = plans.length > 0 ? Math.ceil(plans[0].price / plans[0].maxBooks) : 30;
+  const durationMultiplier = rentalDays <= 120
+    ? 0.2 + (rentalDays / 120) * 0.8
+    : 1.0 + ((rentalDays - 120) / 120) * 0.6;
+  const unitPrice = Math.max(1, Math.round(baseUnitPrice * durationMultiplier));
   const totalItems = Object.values(selected).reduce((s, n) => s + n, 0);
-  const totalPrice = totalItems * unitPrice;
+  const deposit = selectedPlan ? (plans.find(p => p.id === selectedPlan)?.deposit || 0) : 0;
+  const totalPrice = totalItems * unitPrice + deposit;
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -99,7 +113,7 @@ export default function TextbooksPage() {
 
   const handlePurchase = async () => {
     if (!user) { router.push("/login"); return; }
-    if (totalItems === 0) { toast.error("请选择至少一本教材"); return; }
+    if (totalItems === 0) { toast.error("请选择至少一本书"); return; }
 
     setSubmitting(true);
     try {
@@ -109,6 +123,7 @@ export default function TextbooksPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items,
+          rentalDays,
           ...(selectedPlan ? { planId: selectedPlan } : {}),
           deliveryType,
           ...(deliveryType === "cabinet" ? { cabinetSlotId } : { dormitory, floor, roomNumber }),
@@ -116,7 +131,7 @@ export default function TextbooksPage() {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success("下单成功，请前往订单页面支付");
+        toast.success("借阅下单成功，请前往订单页面支付");
         router.push("/orders");
       } else {
         toast.error(data.error);
@@ -139,7 +154,7 @@ export default function TextbooksPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">书籍中心</h1>
         <div className="flex gap-3">
-          <Link href="/textbooks/my" className="text-blue-600 hover:underline text-sm">我的教材</Link>
+          <Link href="/textbooks/my" className="text-blue-600 hover:underline text-sm">我的借阅</Link>
           <Link href="/subscriptions/my" className="text-blue-600 hover:underline text-sm">我的订阅</Link>
         </div>
       </div>
@@ -172,17 +187,34 @@ export default function TextbooksPage() {
         </button>
       </div>
 
+      {/* 租期选择 */}
+      <div className="mb-6">
+        <h3 className="text-sm font-medium text-gray-500 mb-2">选择借阅时长</h3>
+        <div className="flex gap-2 flex-wrap">
+          {RENTAL_OPTIONS.map(opt => (
+            <button
+              key={opt.days}
+              onClick={() => setRentalDays(opt.days)}
+              className={`px-4 py-2 rounded-lg border-2 text-sm transition ${rentalDays === opt.days ? "border-blue-500 bg-blue-50 text-blue-700 font-medium" : "border-gray-200 hover:border-gray-300 text-gray-600"}`}
+            >
+              {opt.label}
+              <span className="block text-xs text-gray-400">{opt.days}天</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* 订阅套餐选择（仅课程教材） */}
       {tab === "textbook" && plans.length > 0 && (
         <div className="mb-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-2">选择订阅套餐（可选，不选则按本计费）</h3>
+          <h3 className="text-sm font-medium text-gray-500 mb-2">选择订阅套餐（可选，含免费宽限期）</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <button
               onClick={() => setSelectedPlan("")}
               className={`p-3 rounded-lg border-2 text-left text-sm ${!selectedPlan ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}
             >
-              <div className="font-medium">按本购买</div>
-              <div className="text-xs text-gray-500">灵活选购，按本计费</div>
+              <div className="font-medium">按本借阅</div>
+              <div className="text-xs text-gray-500">灵活选书，按本计费</div>
             </button>
             {plans.map((p: Plan) => (
               <button
@@ -191,19 +223,17 @@ export default function TextbooksPage() {
                 className={`p-3 rounded-lg border-2 text-left text-sm ${selectedPlan === p.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}
               >
                 <div className="font-medium">{p.name || `套餐（${p.maxBooks}本）`}</div>
-                <div className="text-xs text-gray-500">¥{p.price} + 押金 ¥{p.deposit} · 最多{p.maxBooks}本</div>
+                <div className="text-xs text-gray-500">¥{p.price} + 押金 ¥{p.deposit} · 最多{p.maxBooks}本 · 宽限{(p.freeLateDays ?? 3)}天</div>
               </button>
             ))}
           </div>
-          {selectedPlan && (
-            <p className="text-xs text-blue-600 mt-2">已选套餐，学期末统一归还，逾期按 ¥2/天计费</p>
-          )}
         </div>
       )}
 
       {/* 书籍列表 - 可多选 */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-4">{tab === "textbook" ? "选择教材" : "经典读物"}（单价 ¥{unitPrice}/本）</h2>
+        <h2 className="text-lg font-semibold mb-1">{tab === "textbook" ? "选择教材" : "经典读物"}</h2>
+        <p className="text-xs text-gray-400 mb-4">借阅价 ¥{unitPrice}/本 · 租期{rentalDays}天 · 逾期 ¥2/天</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {textbooks.filter(tb => tab === "textbook" ? tb.course : !tb.course).map((tb) => {
             const isSelected = !!selected[tb.id];
@@ -303,18 +333,39 @@ export default function TextbooksPage() {
         </Card>
       )}
 
-      {/* 购买栏 */}
+      {/* 借阅栏 */}
       {totalItems > 0 && (
-        <div className="sticky bottom-0 bg-white border-t p-4 flex items-center justify-between">
-          <div>
-            <span className="text-sm text-gray-500">已选 {totalItems} 本</span>
-            <span className="ml-4 text-xl font-bold text-red-600">¥{totalPrice}</span>
+        <div className="sticky bottom-0 bg-white border-t p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm text-gray-500">已选 {totalItems} 本 · 租期 {rentalDays} 天</span>
+              <span className="ml-4 text-xl font-bold text-red-600">¥{totalPrice}</span>
+              {deposit > 0 && <span className="ml-1 text-xs text-gray-400">（含押金 ¥{deposit}）</span>}
+            </div>
+            <Button size="lg" onClick={handlePurchase} disabled={submitting}>
+              {submitting ? "提交中..." : "确认借阅"}
+            </Button>
           </div>
-          <Button size="lg" onClick={handlePurchase} disabled={submitting}>
-            {submitting ? "提交中..." : "立即购买"}
-          </Button>
+          <p className="text-xs text-gray-400">
+            借阅后 {rentalDays} 天内归还，逾期按 ¥2/天 收取费用 · 支持续借 · 归还后押金原路退回
+          </p>
         </div>
       )}
+
+      {/* 租借规则说明 */}
+      <Card className="mt-6 bg-blue-50/50 border-blue-100">
+        <CardContent className="text-sm text-gray-600 space-y-2 py-4">
+          <p className="font-medium text-gray-800">📖 借阅规则</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+            <p>• 选书后选择借阅时长，费用按时长按比例计算</p>
+            <p>• 选择订阅套餐可享免费宽限期（逾期不计费）</p>
+            <p>• 支持续借：1个月/1学期/标准学期，费用按比例收取</p>
+            <p>• 逾期费 ¥2/天，同时扣除信用分 2 分/次</p>
+            <p>• 归还后书籍进入消毒流程，1-2 个工作日重新上架</p>
+            <p>• 押金在全部归还后原路退回</p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

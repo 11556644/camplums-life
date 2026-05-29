@@ -36,10 +36,14 @@ export async function GET() {
       const overdueDays = isOverdue && c.dueDate
         ? Math.ceil((now.getTime() - c.dueDate.getTime()) / (1000 * 60 * 60 * 24))
         : 0;
+      const remainingDays = c.dueDate
+        ? Math.ceil((c.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
       return {
         ...c,
         isOverdue,
         overdueDays,
+        remainingDays: Math.max(0, remainingDays),
       };
     });
 
