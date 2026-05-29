@@ -306,10 +306,9 @@ async function main() {
   const boards = await Promise.all([
     db.forumBoard.create({ data: { schoolId: school.id, name: "校园生活", description: "分享日常，记录美好校园时光", icon: "🏫", sortOrder: 1 } }),
     db.forumBoard.create({ data: { schoolId: school.id, name: "学习交流", description: "学习经验、考试攻略、课程讨论", icon: "📖", sortOrder: 2 } }),
-    db.forumBoard.create({ data: { schoolId: school.id, name: "二手交易", description: "闲置转让、拼单合买", icon: "🛒", sortOrder: 3 } }),
-    db.forumBoard.create({ data: { schoolId: school.id, name: "情感天地", description: "倾诉心事、分享感悟", icon: "💕", sortOrder: 4 } }),
-    db.forumBoard.create({ data: { schoolId: school.id, name: "求职就业", description: "实习信息、面试经验、职业规划", icon: "💼", sortOrder: 5 } }),
-    db.forumBoard.create({ data: { schoolId: school.id, name: "灌水区", description: "随便聊聊，放松心情", icon: "🌊", sortOrder: 6 } }),
+    db.forumBoard.create({ data: { schoolId: school.id, name: "情感天地", description: "倾诉心事、分享感悟", icon: "💕", sortOrder: 3 } }),
+    db.forumBoard.create({ data: { schoolId: school.id, name: "求职就业", description: "实习信息、面试经验、职业规划", icon: "💼", sortOrder: 4 } }),
+    db.forumBoard.create({ data: { schoolId: school.id, name: "灌水区", description: "随便聊聊，放松心情", icon: "🌊", sortOrder: 5 } }),
   ]);
 
   // 示例帖子
@@ -333,7 +332,7 @@ async function main() {
 
   const post3 = await db.forumPost.create({
     data: {
-      schoolId: school.id, boardId: boards[3].id, authorId: buyer.id,
+      schoolId: school.id, boardId: boards[2].id, authorId: buyer.id,
       title: "大一快结束了，感觉时间过得好快",
       content: "转眼间大一就要结束了，感觉昨天还在军训。这一年经历了很多，认识了一群很好的室友，虽然成绩一般但学到了很多课本外的东西。希望接下来的大学生活能更加充实。",
       isAnonymous: true,
@@ -343,7 +342,7 @@ async function main() {
 
   const post4 = await db.forumPost.create({
     data: {
-      schoolId: school.id, boardId: boards[4].id, authorId: serviceProvider.id,
+      schoolId: school.id, boardId: boards[3].id, authorId: serviceProvider.id,
       title: "暑假实习找工作的几点建议",
       content: "作为大三学长，给学弟学妹们几点实习建议：\n\n1. 简历要简洁突出项目经验\n2. 3-4月是春招黄金期，别错过\n3. 多关注学校就业信息网\n4. 面试前研究公司背景和岗位需求\n5. 技术面多刷题，HR面准备好自我介绍\n\n加油！",
       viewCount: 384, likeCount: 89, commentCount: 15,
@@ -365,8 +364,8 @@ async function main() {
   // 更新板块帖子数
   await db.forumBoard.update({ where: { id: boards[0].id }, data: { postCount: 1 } });
   await db.forumBoard.update({ where: { id: boards[1].id }, data: { postCount: 1 } });
+  await db.forumBoard.update({ where: { id: boards[2].id }, data: { postCount: 1 } });
   await db.forumBoard.update({ where: { id: boards[3].id }, data: { postCount: 1 } });
-  await db.forumBoard.update({ where: { id: boards[4].id }, data: { postCount: 1 } });
 
   console.log("Created forum boards and sample posts");
 
