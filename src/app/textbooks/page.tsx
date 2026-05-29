@@ -136,7 +136,7 @@ export default function TextbooksPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">教材中心</h1>
+        <h1 className="text-2xl font-bold">书籍/教材中心</h1>
         <div className="flex gap-3">
           <Link href="/textbooks/my" className="text-blue-600 hover:underline text-sm">我的教材</Link>
           <Link href="/subscriptions/my" className="text-blue-600 hover:underline text-sm">我的订阅</Link>

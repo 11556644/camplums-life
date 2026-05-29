@@ -1,7 +1,7 @@
 import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
 import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { getUploadDir, getUploadUrl } from "@/lib/upload-path";
 
 const ALLOWED_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -32,22 +32,22 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const magic = buffer.slice(0, 4).toString("hex");
     const validMagic: Record<string, string[]> = {
-      jpg: ["ffd8ffe0", "ffd8ffe1", "ffd8ffe2", "ffd8ffe8"],
+      jpg: ["ffd8ff"], // 通用 JPEG 匹配（覆盖 e0/e1/e2/e8 等所有变体）
       png: ["89504e47"],
       webp: ["52494646"], // RIFF
       gif: ["47494638"],
     };
-    if (!validMagic[ext]?.some((m) => magic.startsWith(m.slice(0, 4)))) {
+    if (!validMagic[ext]?.some((m) => magic.startsWith(m))) {
       return apiError("文件内容与扩展名不匹配");
     }
 
     // 安全文件名（纯随机，无用户输入）
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const uploadDir = join(process.cwd(), "public", "uploads");
+    const uploadDir = getUploadDir();
     await mkdir(uploadDir, { recursive: true });
-    await writeFile(join(uploadDir, filename), buffer);
+    await writeFile(`${uploadDir}/${filename}`, buffer);
 
-    return apiSuccess({ url: `/uploads/${filename}` });
+    return apiSuccess({ url: getUploadUrl(filename) });
   } catch {
     return apiError("上传失败", 500);
   }

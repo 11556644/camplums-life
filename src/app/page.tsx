@@ -5,7 +5,8 @@ const features = [
   { title: "闲置市场", desc: "买卖闲置物品，让旧物找到新主人", href: "/products", icon: "📦" },
   { title: "自由市场", desc: "跑腿、代取、辅导、技能交换", href: "/tasks", icon: "🤝" },
   { title: "智能柜", desc: "24小时自助存取，解决时间对不上的问题", href: "/cabinets", icon: "🔐" },
-  { title: "教材订阅", desc: "按学期租教材，省钱又环保", href: "/textbooks", icon: "📚" },
+  { title: "书籍/教材订阅", desc: "按学期租教材，课外读物也能借", href: "/textbooks", icon: "📚" },
+  { title: "校园贴吧", desc: "分享校园生活，交流学习心得", href: "/forum", icon: "💬" },
 ];
 
 export default function HomePage() {
@@ -16,7 +17,7 @@ export default function HomePage() {
           校园生活服务平台
         </h1>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          闲置交易 · 智能柜寄存 · 教材订阅 · 技能互换
+          闲置交易 · 智能柜寄存 · 书籍/教材订阅 · 校园贴吧 · 技能互换
         </p>
         <p className="text-sm text-gray-400 mt-2">
           让校园资源流转起来

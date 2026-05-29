@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   title: "校园生活服务平台",
-  description: "校园闲置物品交易、智能柜寄存、教材订阅、自由市场",
+  description: "校园闲置物品交易、智能柜寄存、书籍/教材订阅、校园贴吧、自由市场",
 };
 
 export default function RootLayout({

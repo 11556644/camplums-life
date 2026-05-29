@@ -44,7 +44,8 @@ export function Navbar() {
           <Link href="/products" className="text-gray-600 hover:text-gray-900">闲置市场</Link>
           <Link href="/tasks" className="text-gray-600 hover:text-gray-900">自由市场</Link>
           <Link href="/cabinets" className="text-gray-600 hover:text-gray-900">智能柜</Link>
-          <Link href="/textbooks" className="text-gray-600 hover:text-gray-900">教材订阅</Link>
+          <Link href="/textbooks" className="text-gray-600 hover:text-gray-900">书籍/教材订阅</Link>
+          <Link href="/forum" className="text-gray-600 hover:text-gray-900">校园贴吧</Link>
         </nav>
 
         <div className="ml-auto flex items-center space-x-2">

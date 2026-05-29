@@ -7,7 +7,7 @@ async function main() {
   console.log("Seeding database...");
 
   // 清空所有表（按依赖顺序）
-  await db.$executeRaw`TRUNCATE TABLE "LogisticsNode", "LogisticsRoute", "InventoryTransaction", "InspectionRecord", "TextbookCopy", "Textbook", "CabinetSlotLog", "CabinetSlotOrder", "CabinetSlot", "Cabinet", "Dispute", "Rating", "Message", "WalletTransaction", "Wallet", "EventLog", "AuditLog", "CreditScore", "UserRole", "OrderItem", "Order", "SubscriptionOrder", "SubscriptionPlan", "SchoolConfig", "Task", "Product", "User", "School" CASCADE`;
+  await db.$executeRaw`TRUNCATE TABLE "ForumLike", "ForumFavorite", "ForumComment", "ForumPost", "ForumBoard", "LogisticsNode", "LogisticsRoute", "InventoryTransaction", "InspectionRecord", "TextbookCopy", "Textbook", "CabinetSlotLog", "CabinetSlotOrder", "CabinetSlot", "Cabinet", "Dispute", "Rating", "Message", "WalletTransaction", "Wallet", "EventLog", "AuditLog", "CreditScore", "UserRole", "OrderItem", "Order", "SubscriptionOrder", "SubscriptionPlan", "SchoolConfig", "Task", "Product", "User", "School" CASCADE`;
 
   // ==================== 学校 ====================
   const school = await db.school.create({
@@ -168,6 +168,17 @@ async function main() {
     { isbn: "9787300256511", title: "管理学", author: "罗宾斯", publisher: "中国人民大学出版社", edition: "第十三版", course: "管理学原理", department: "管理学院", isRequired: true },
     { isbn: "9787563559589", title: "人工智能导论", author: "李德毅", publisher: "北京邮电大学出版社", edition: "第二版", course: "人工智能导论", department: "计算机学院", isRequired: false },
     { isbn: "9787302468264", title: "机器学习", author: "周志华", publisher: "清华大学出版社", edition: "第一版", course: "机器学习", department: "计算机学院", isRequired: false },
+    // 课外书籍
+    { isbn: "9787544253994", title: "百年孤独", author: "加西亚·马尔克斯", publisher: "南海出版公司", edition: "精装版", course: null, department: null, isRequired: false },
+    { isbn: "9787020024759", title: "红楼梦", author: "曹雪芹", publisher: "人民文学出版社", edition: "第三版", course: null, department: null, isRequired: false },
+    { isbn: "9787544270878", title: "解忧杂货店", author: "东野圭吾", publisher: "南海出版公司", edition: "平装版", course: null, department: null, isRequired: false },
+    { isbn: "9787530216781", title: "活着", author: "余华", publisher: "北京十月文艺出版社", edition: "精装版", course: null, department: null, isRequired: false },
+    { isbn: "9787544291163", title: "人类简史", author: "尤瓦尔·赫拉利", publisher: "中信出版社", edition: "平装版", course: null, department: null, isRequired: false },
+    { isbn: "9787550263680", title: "三体", author: "刘慈欣", publisher: "重庆出版社", edition: "全套", course: null, department: null, isRequired: false },
+    { isbn: "9787532776788", title: "小王子", author: "圣埃克苏佩里", publisher: "上海译文出版社", edition: "精装版", course: null, department: null, isRequired: false },
+    { isbn: "9787544298070", title: "挪威的森林", author: "村上春树", publisher: "南海出版公司", edition: "平装版", course: null, department: null, isRequired: false },
+    { isbn: "9787508663364", title: "时间简史", author: "史蒂芬·霍金", publisher: "湖南科学技术出版社", edition: "插图版", course: null, department: null, isRequired: false },
+    { isbn: "9787020002207", title: "围城", author: "钱钟书", publisher: "人民文学出版社", edition: "第二版", course: null, department: null, isRequired: false },
   ];
 
   const conditions = ["new", "like_new", "good", "acceptable"];
@@ -235,9 +246,9 @@ async function main() {
   // ==================== 示例商品 ====================
   await db.product.createMany({
     data: [
-      { schoolId: school.id, sellerId: seller.id, category: "electronics", title: "iPad Air 5 64G WiFi版", description: "自用一年，功能完好，无磕碰，配原装充电器和保护壳", price: 2800, images: JSON.stringify(["/uploads/ipad-air.png"]), status: "active", location: "1号楼" },
-      { schoolId: school.id, sellerId: seller.id, category: "books", title: "考研英语真题全套", description: "2020-2025年真题详解，几乎全新", price: 45, images: JSON.stringify(["/uploads/kaoyan-english.png"]), status: "active", location: "1号楼" },
-      { schoolId: school.id, sellerId: floorLeader.id, category: "furniture", title: "宿舍台灯 护眼款", description: "LED护眼台灯，三档调光，毕业清仓", price: 35, images: JSON.stringify(["/uploads/desk-lamp.png"]), status: "active", location: "1号楼" },
+      { schoolId: school.id, sellerId: seller.id, category: "electronics", title: "iPad Air 5 64G WiFi版", description: "自用一年，功能完好，无磕碰，配原装充电器和保护壳", price: 2800, images: JSON.stringify(["/images/seeds/ipad-air.png"]), status: "active", location: "1号楼" },
+      { schoolId: school.id, sellerId: seller.id, category: "books", title: "考研英语真题全套", description: "2020-2025年真题详解，几乎全新", price: 45, images: JSON.stringify(["/images/seeds/kaoyan-english.png"]), status: "active", location: "1号楼" },
+      { schoolId: school.id, sellerId: floorLeader.id, category: "furniture", title: "宿舍台灯 护眼款", description: "LED护眼台灯，三档调光，毕业清仓", price: 35, images: JSON.stringify(["/images/seeds/desk-lamp.png"]), status: "active", location: "1号楼" },
       { schoolId: school.id, sellerId: serviceProvider.id, category: "daily", title: "未拆封洗衣液2L装", description: "囤多了，全新未拆封", price: 18, status: "active", location: "3号楼" },
       { schoolId: school.id, sellerId: seller.id, category: "electronics", title: "罗技G304无线鼠标", description: "用了一个学期，手感好，送鼠标垫", price: 120, status: "active", location: "1号楼" },
     ],
@@ -290,6 +301,74 @@ async function main() {
   });
 
   console.log("Created demo logistics route");
+
+  // ==================== 校园贴吧 ====================
+  const boards = await Promise.all([
+    db.forumBoard.create({ data: { schoolId: school.id, name: "校园生活", description: "分享日常，记录美好校园时光", icon: "🏫", sortOrder: 1 } }),
+    db.forumBoard.create({ data: { schoolId: school.id, name: "学习交流", description: "学习经验、考试攻略、课程讨论", icon: "📖", sortOrder: 2 } }),
+    db.forumBoard.create({ data: { schoolId: school.id, name: "二手交易", description: "闲置转让、拼单合买", icon: "🛒", sortOrder: 3 } }),
+    db.forumBoard.create({ data: { schoolId: school.id, name: "情感天地", description: "倾诉心事、分享感悟", icon: "💕", sortOrder: 4 } }),
+    db.forumBoard.create({ data: { schoolId: school.id, name: "求职就业", description: "实习信息、面试经验、职业规划", icon: "💼", sortOrder: 5 } }),
+    db.forumBoard.create({ data: { schoolId: school.id, name: "灌水区", description: "随便聊聊，放松心情", icon: "🌊", sortOrder: 6 } }),
+  ]);
+
+  // 示例帖子
+  const post1 = await db.forumPost.create({
+    data: {
+      schoolId: school.id, boardId: boards[0].id, authorId: buyer.id,
+      title: "食堂新开的窗口味道不错！",
+      content: "今天去食堂发现一楼新开了一家麻辣烫窗口，味道真的很棒！推荐大家去试试，分量也很足，人均大概15-20块。他们家的辣椒油是自己做的，特别香。",
+      viewCount: 128, likeCount: 23, commentCount: 5,
+    },
+  });
+
+  const post2 = await db.forumPost.create({
+    data: {
+      schoolId: school.id, boardId: boards[1].id, authorId: seller.id,
+      title: "数据结构期末复习攻略分享",
+      content: "分享一下我去年数据结构的复习方法：\n\n1. 先把课本上的例题全部做一遍\n2. 重点看二叉树、图的遍历算法\n3. 动态规划是难点，建议多刷LeetCode相关题目\n4. 考前一周做3套历年真题\n\n有需要资料的同学可以私信我，有电子版笔记和往年真题。",
+      viewCount: 256, likeCount: 45, commentCount: 8,
+    },
+  });
+
+  const post3 = await db.forumPost.create({
+    data: {
+      schoolId: school.id, boardId: boards[3].id, authorId: buyer.id,
+      title: "大一快结束了，感觉时间过得好快",
+      content: "转眼间大一就要结束了，感觉昨天还在军训。这一年经历了很多，认识了一群很好的室友，虽然成绩一般但学到了很多课本外的东西。希望接下来的大学生活能更加充实。",
+      isAnonymous: true,
+      viewCount: 512, likeCount: 67, commentCount: 12,
+    },
+  });
+
+  const post4 = await db.forumPost.create({
+    data: {
+      schoolId: school.id, boardId: boards[4].id, authorId: serviceProvider.id,
+      title: "暑假实习找工作的几点建议",
+      content: "作为大三学长，给学弟学妹们几点实习建议：\n\n1. 简历要简洁突出项目经验\n2. 3-4月是春招黄金期，别错过\n3. 多关注学校就业信息网\n4. 面试前研究公司背景和岗位需求\n5. 技术面多刷题，HR面准备好自我介绍\n\n加油！",
+      viewCount: 384, likeCount: 89, commentCount: 15,
+    },
+  });
+
+  // 示例评论
+  await db.forumComment.createMany({
+    data: [
+      { postId: post1.id, authorId: seller.id, content: "确实好吃！他们家的丸子也很Q弹", likeCount: 5 },
+      { postId: post1.id, authorId: serviceProvider.id, content: "谢谢推荐，明天去尝尝", likeCount: 2 },
+      { postId: post2.id, authorId: buyer.id, content: "学长太好了！请问笔记可以分享一下吗？", likeCount: 8 },
+      { postId: post2.id, authorId: floorLeader.id, content: "补充一下，链表相关的题目也经常考", likeCount: 12 },
+      { postId: post3.id, authorId: seller.id, content: "同感，感觉每天都很忙但又不知道忙了什么", isAnonymous: true, likeCount: 15 },
+      { postId: post4.id, authorId: buyer.id, content: "请问学长是哪个专业的？", likeCount: 3 },
+    ],
+  });
+
+  // 更新板块帖子数
+  await db.forumBoard.update({ where: { id: boards[0].id }, data: { postCount: 1 } });
+  await db.forumBoard.update({ where: { id: boards[1].id }, data: { postCount: 1 } });
+  await db.forumBoard.update({ where: { id: boards[3].id }, data: { postCount: 1 } });
+  await db.forumBoard.update({ where: { id: boards[4].id }, data: { postCount: 1 } });
+
+  console.log("Created forum boards and sample posts");
 
   // ==================== 提示 ====================
   console.log("\n====================");

@@ -96,9 +96,9 @@ export function CabinetQRScanner({ onSuccess }: CabinetQRScannerProps) {
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.onloadeddata = () => {
-            animFrameRef.current = requestAnimationFrame(scanFrame);
-          };
+          const startScan = () => { animFrameRef.current = requestAnimationFrame(scanFrame); };
+          videoRef.current.onloadeddata = startScan;
+          try { await videoRef.current.play(); } catch { /* autoplay blocked, onloadeddata will fire */ }
         }
       } catch (err: any) {
         const msg = err?.name === "NotAllowedError"

@@ -2,4 +2,4 @@
 cmds = ["npx prisma generate && npx next build"]
 
 [start]
-cmd = "npx prisma db push --accept-data-loss --skip-generate && npx next start -p $PORT"
+cmd = "mkdir -p data/uploads && npx prisma db push --accept-data-loss --skip-generate && npx next start -p $PORT"
