@@ -57,6 +57,7 @@ export default function TextbooksPage() {
   const [floor, setFloor] = useState("");
   const [roomNumber, setRoomNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [tab, setTab] = useState<"textbook" | "extracurricular">("textbook");
   const [selectedPlan, setSelectedPlan] = useState<string>("");
 
   useEffect(() => {
@@ -136,7 +137,7 @@ export default function TextbooksPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">书籍/教材中心</h1>
+        <h1 className="text-2xl font-bold">书籍中心</h1>
         <div className="flex gap-3">
           <Link href="/textbooks/my" className="text-blue-600 hover:underline text-sm">我的教材</Link>
           <Link href="/subscriptions/my" className="text-blue-600 hover:underline text-sm">我的订阅</Link>
@@ -146,7 +147,7 @@ export default function TextbooksPage() {
       <form onSubmit={handleSearch} className="flex gap-2 mb-6">
         <input
           type="text"
-          placeholder="搜索教材名称、作者、ISBN、课程..."
+          placeholder="搜索书名、作者、ISBN、课程..."
           value={searchInput}
           onChange={e => setSearchInput(e.target.value)}
           className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -155,8 +156,24 @@ export default function TextbooksPage() {
         {searchQuery && <button type="button" onClick={() => { setSearchQuery(""); setSearchInput(""); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">清除</button>}
       </form>
 
-      {/* 订阅套餐选择（可选） */}
-      {plans.length > 0 && (
+      {/* 分类切换 */}
+      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
+        <button
+          onClick={() => setTab("textbook")}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${tab === "textbook" ? "bg-white shadow text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+        >
+          课程教材
+        </button>
+        <button
+          onClick={() => setTab("extracurricular")}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${tab === "extracurricular" ? "bg-white shadow text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+        >
+          经典读物
+        </button>
+      </div>
+
+      {/* 订阅套餐选择（仅课程教材） */}
+      {tab === "textbook" && plans.length > 0 && (
         <div className="mb-6">
           <h3 className="text-sm font-medium text-gray-500 mb-2">选择订阅套餐（可选，不选则按本计费）</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -184,11 +201,11 @@ export default function TextbooksPage() {
         </div>
       )}
 
-      {/* 教材列表 - 可多选 */}
+      {/* 书籍列表 - 可多选 */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-4">选择教材（单价 ¥{unitPrice}/本）</h2>
+        <h2 className="text-lg font-semibold mb-4">{tab === "textbook" ? "选择教材" : "经典读物"}（单价 ¥{unitPrice}/本）</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {textbooks.map((tb) => {
+          {textbooks.filter(tb => tab === "textbook" ? tb.course : !tb.course).map((tb) => {
             const isSelected = !!selected[tb.id];
             const canSelect = tb.availableCount > 0;
             return (

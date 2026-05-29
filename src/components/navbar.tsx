@@ -44,11 +44,11 @@ export function Navbar() {
           <Link href="/products" className="text-gray-600 hover:text-gray-900">闲置市场</Link>
           <Link href="/tasks" className="text-gray-600 hover:text-gray-900">自由市场</Link>
           <Link href="/cabinets" className="text-gray-600 hover:text-gray-900">智能柜</Link>
-          <Link href="/textbooks" className="text-gray-600 hover:text-gray-900">书籍/教材订阅</Link>
+          <Link href="/textbooks" className="text-gray-600 hover:text-gray-900">书籍订阅</Link>
         </nav>
 
         <div className="ml-auto flex items-center space-x-3">
-          <Link href="/forum" className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">校园贴吧</Link>
+          <Link href="/forum" className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mr-2">校园贴吧</Link>
           {loading ? (
             <div className="h-8 w-16 animate-pulse rounded bg-gray-200" />
           ) : user ? (

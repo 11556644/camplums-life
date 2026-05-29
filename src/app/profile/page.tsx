@@ -46,7 +46,9 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ nickname: "", department: "", dormitory: "", roomNumber: "" });
-  const [tab, setTab] = useState<"orders" | "published" | "tasks">("orders");
+  const [tab, setTab] = useState<"orders" | "published" | "tasks" | "favorites">("orders");
+  const [favorites, setFavorites] = useState<Array<{ id: string; title: string; content: string; board: { id: string; name: string }; likeCount: number; commentCount: number; createdAt: string }>>([]);
+  const [loadingFav, setLoadingFav] = useState(false);
 
   useEffect(() => {
     if (!user) { router.push("/login"); return; }
@@ -63,6 +65,15 @@ export default function ProfilePage() {
       setLoading(false);
     });
   }, [user, router]);
+
+  useEffect(() => {
+    if (tab !== "favorites" || favorites.length > 0) return;
+    setLoadingFav(true);
+    fetch("/api/forum/favorites").then(r => r.json()).then(d => {
+      if (d.success) setFavorites(d.data);
+      setLoadingFav(false);
+    }).catch(() => setLoadingFav(false));
+  }, [tab, favorites.length]);
 
   const [saving, setSaving] = useState(false);
 
@@ -138,16 +149,17 @@ export default function ProfilePage() {
         <Link href="/chats"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">💬</div><div className="text-sm font-medium">聊天</div></CardContent></Card></Link>
         <Link href="/messages"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">🔔</div><div className="text-sm font-medium">消息通知</div></CardContent></Card></Link>
         <Link href="/disputes"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">⚠️</div><div className="text-sm font-medium">投诉记录</div></CardContent></Card></Link>
+        <button onClick={() => setTab("favorites")} className="text-left"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">⭐</div><div className="text-sm font-medium">贴吧收藏</div></CardContent></Card></button>
       </div>
 
       {/* 我的发布 */}
       <Card>
         <CardHeader>
           <div className="flex gap-4 border-b">
-            {(["orders", "published", "tasks"] as const).map(t => (
+            {(["orders", "published", "tasks", "favorites"] as const).map(t => (
               <button key={t} onClick={() => setTab(t)}
                 className={`pb-2 text-sm font-medium border-b-2 transition-colors ${tab === t ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"}`}>
-                {t === "orders" ? "我的订单" : t === "published" ? "发布商品" : "发布任务"}
+                {t === "orders" ? "我的订单" : t === "published" ? "发布商品" : t === "tasks" ? "发布任务" : "贴吧收藏"}
               </button>
             ))}
           </div>
@@ -189,6 +201,26 @@ export default function ProfilePage() {
                     <span className="text-sm text-orange-600">{t.budget ? `¥${t.budget}` : "面议"}</span>
                   </Link>
                 ))
+              }
+            </div>
+          )}
+          {tab === "favorites" && (
+            <div className="space-y-2">
+              {loadingFav ? <p className="text-gray-400 text-sm">加载中...</p> :
+                favorites.length === 0 ? <p className="text-gray-400 text-sm">暂无收藏</p> :
+                  favorites.map(f => (
+                    <Link key={f.id} href={`/forum/${f.board?.id}/${f.id}`} className="block p-2 rounded hover:bg-gray-50">
+                      <div className="flex items-center gap-2 mb-1">
+                        {f.board && <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded">{f.board.name}</span>}
+                        <span className="text-sm font-medium line-clamp-1">{f.title}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 line-clamp-1">{f.content}</p>
+                      <div className="flex gap-3 mt-1 text-xs text-gray-400">
+                        <span>👍 {f.likeCount}</span>
+                        <span>💬 {f.commentCount}</span>
+                      </div>
+                    </Link>
+                  ))
               }
             </div>
           )}
