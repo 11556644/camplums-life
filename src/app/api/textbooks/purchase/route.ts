@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { generateOrderNo, ORDER_STATUS } from "@/lib/order-state-machine";
+import { calculateBookRentalPrice, getBookOriginalPrice } from "@/lib/pricing";
 import { z } from "zod";
 
 const purchaseSchema = z.object({
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
   if (deliveryType === "cabinet" && !cabinetSlotId) return apiError("请选择智能柜");
   if (deliveryType === "dormitory" && (!dormitory || !roomNumber)) return apiError("请填写宿舍信息");
 
-  // 根据租期计算价格
+  // 根据租期和原价计算价格
   let unitPrice: number;
   let plan: { id: string; deposit: number; freeLateDays: number; price: number; maxBooks: number } | null = null;
   let deposit = 0;
@@ -48,14 +49,19 @@ export async function POST(req: Request) {
     deposit = foundPlan.deposit;
     freeLateDays = foundPlan.freeLateDays;
   } else {
-    const plans = await db.subscriptionPlan.findMany({ where: { status: "active" }, take: 1 });
-    const basePrice = plans.length > 0 ? Math.ceil(plans[0].price / plans[0].maxBooks) : 30;
-    // 按本借阅：根据租期动态调整单价（以120天为基准）
-    const ref = 120;
-    const mult = rentalDays <= ref
-      ? 0.2 + (rentalDays / ref) * 0.8
-      : 1.0 + ((rentalDays - ref) / ref) * 0.6;
-    unitPrice = Math.max(1, Math.round(basePrice * mult));
+    // 按本借阅：根据每本书的原价和租期计算，取平均值
+    const textbookIds = items.map(i => i.textbookId);
+    const textbooks = await db.textbook.findMany({
+      where: { id: { in: textbookIds } },
+      select: { id: true, title: true, originalPrice: true },
+    });
+    const priceMap = new Map(textbooks.map(t => [t.id, t.originalPrice || getBookOriginalPrice(t.title)]));
+    const totalRental = items.reduce((sum, item) => {
+      const originalPrice = priceMap.get(item.textbookId) || 50;
+      return sum + calculateBookRentalPrice(originalPrice, rentalDays) * item.quantity;
+    }, 0);
+    const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+    unitPrice = Math.max(1, Math.round(totalRental / totalQty));
   }
 
   const totalBooks = items.reduce((s, i) => s + i.quantity, 0);

@@ -51,6 +51,7 @@ export default function CabinetsPage() {
   const [lastPickupCode, setLastPickupCode] = useState<string | null>(null);
   const [depositPhoto, setDepositPhoto] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [durationMinutes, setDurationMinutes] = useState(1440);
   const fileRef = useRef<HTMLInputElement>(null);
   const [myBindings, setMyBindings] = useState<{ id: string; pickupCode: string; status: string; expiresAt: string | null; depositType: string; slot: { slotNumber: number; cabinet: { name: string } }; photo: string | null }[]>([]);
 
@@ -92,7 +93,7 @@ export default function CabinetsPage() {
     const res = await fetch("/api/cabinets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slotId, depositType: "storage", fee: 5, photo: depositPhoto }),
+      body: JSON.stringify({ slotId, depositType: "storage", durationMinutes, photo: depositPhoto }),
     });
     const data = await res.json();
     if (data.success) {
@@ -143,6 +144,26 @@ export default function CabinetsPage() {
           )}
         </div>
       </div>
+
+      {/* 收费说明 */}
+      <Card className="mb-4 bg-blue-50/50 border-blue-100">
+        <CardContent className="py-3 text-xs text-gray-600">
+          <div className="flex flex-wrap gap-x-6 gap-y-1">
+            <span className="font-medium text-gray-800">💰 收费标准：</span>
+            <span>30分钟内 <b className="text-green-600">免费</b></span>
+            <span>2小时 ¥0.5</span>
+            <span>6小时 ¥1</span>
+            <span>12小时 ¥1.5</span>
+            <span>1天 ¥2</span>
+            <span>3天 ¥4</span>
+            <span>7天 ¥6</span>
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-orange-600">
+            <span className="font-medium">🏷️ 商品交易存柜专享：</span>
+            <span>2小时 <span className="line-through text-orange-400/60">¥0.5</span> <b>¥0.2</b>（省60%，闲置/跑腿/任务交易自动适用）</span>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 左侧：扫码/取件 + 我的寄存 */}
@@ -213,7 +234,41 @@ export default function CabinetsPage() {
                 {selectedSlot && cabinet.slots.some((s) => s.id === selectedSlot) && (
                   <div className="mt-4 p-3 bg-blue-50 rounded-lg space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">已选择柜格，存入费用 ¥5/次</span>
+                      <span className="text-sm">已选择柜格</span>
+                    {/* 存储时长选择 */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">选择存储时长</span>
+                        <span className="text-xs text-orange-500">商品交易存柜(2h)享特价 ¥0.2</span>
+                      </div>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {[
+                          { m: 30, l: "30分钟", p: "免费", trade: null },
+                          { m: 120, l: "2小时", p: "¥0.5", trade: "¥0.2" },
+                          { m: 360, l: "6小时", p: "¥1", trade: null },
+                          { m: 720, l: "12小时", p: "¥1.5", trade: null },
+                          { m: 1440, l: "1天", p: "¥2", trade: null },
+                          { m: 4320, l: "3天", p: "¥4", trade: null },
+                          { m: 10080, l: "7天", p: "¥6", trade: null },
+                        ].map(opt => (
+                          <button
+                            key={opt.m}
+                            onClick={() => setDurationMinutes(opt.m)}
+                            className={`px-2.5 py-1 rounded-md text-xs border transition ${durationMinutes === opt.m ? "bg-blue-100 text-blue-800 border-blue-300" : "border-gray-200 text-gray-500 hover:border-gray-300"}`}
+                          >
+                            {opt.l}{" "}
+                            {opt.trade ? (
+                              <span>
+                                <span className="line-through text-gray-400">{opt.p}</span>{" "}
+                                <span className="font-medium text-orange-600">{opt.trade}</span>
+                              </span>
+                            ) : (
+                              <span className="font-medium">{opt.p}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     </div>
                     {/* 存入拍照 */}
                     <div className="flex items-center gap-2">

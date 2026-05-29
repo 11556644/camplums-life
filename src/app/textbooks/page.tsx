@@ -21,6 +21,7 @@ interface Textbook {
   course: string | null;
   department: string | null;
   isRequired: boolean;
+  originalPrice?: number | null;
   availableCount: number;
   totalCount: number;
 }
@@ -260,7 +261,11 @@ export default function TextbooksPage() {
                     <span className={`text-xs px-2 py-0.5 rounded ${tb.availableCount > 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                       库存 {tb.availableCount}/{tb.totalCount}
                     </span>
-                    <span className="font-bold text-blue-600">¥{unitPrice}</span>
+                    <div className="text-right">
+                      {tb.originalPrice && <span className="text-xs text-gray-400 line-through mr-1">原价 ¥{tb.originalPrice}</span>}
+                      <span className="font-bold text-blue-600">¥{unitPrice}</span>
+                      <span className="text-xs text-gray-400">/{rentalDays}天</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

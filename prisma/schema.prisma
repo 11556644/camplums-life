@@ -247,6 +247,8 @@ model CabinetSlotOrder {
   retrievedAt DateTime?
   expiresAt   DateTime?
   fee         Float?
+  prepaidFee  Float?   // 用户预付费用
+  durationHours Int?   // 用户选择的存储时长（小时）
   photo       String?  // 存入时拍照 URL
 
   slot  CabinetSlot @relation(fields: [slotId], references: [id])
@@ -281,6 +283,7 @@ model Textbook {
   department String?
   semester  String?
   isRequired Boolean @default(false)
+  originalPrice Float?  // 原价（用于计算租赁上限）
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

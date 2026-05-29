@@ -157,24 +157,27 @@ export async function PATCH(
           await tx.product.update({ where: { id: item.productId }, data: { status: "sold" } });
         }
       }
-      // 结算到卖家钱包
+      // 结算到卖家钱包（扣除平台抽成）
       const sellerWallet = await tx.wallet.findUnique({ where: { userId: order.sellerId } });
+      const { calculateCommission } = await import("@/lib/pricing");
+      const comm = calculateCommission(order.totalAmount, order.bizType);
+      const sellerReceives = comm.sellerReceives;
       if (sellerWallet) {
-        await tx.wallet.update({ where: { userId: order.sellerId }, data: { balance: sellerWallet.balance + order.totalAmount } });
+        await tx.wallet.update({ where: { userId: order.sellerId }, data: { balance: sellerWallet.balance + sellerReceives } });
         await tx.walletTransaction.create({
           data: {
-            walletId: sellerWallet.id, type: "topup", amount: order.totalAmount,
-            balanceBefore: sellerWallet.balance, balanceAfter: sellerWallet.balance + order.totalAmount,
+            walletId: sellerWallet.id, type: "topup", amount: sellerReceives,
+            balanceBefore: sellerWallet.balance, balanceAfter: sellerWallet.balance + sellerReceives,
             orderId: order.id, method: "settlement", status: "success",
           },
         });
       }
-      // 通知卖家货款到账
+      // 通知卖家货款到账（含抽成说明）
       await tx.message.create({
         data: {
           schoolId: order.schoolId, receiverId: order.sellerId,
           type: "notification", title: "货款已到账",
-          content: `订单 ${order.orderNo} 已确认收货，¥${order.totalAmount} 已结算到您的钱包。`,
+          content: `订单 ${order.orderNo} 已确认收货，¥${sellerReceives} 已结算到您的钱包（平台服务费 ¥${comm.fee}）。`,
         },
       });
     }

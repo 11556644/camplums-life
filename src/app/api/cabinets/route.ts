@@ -29,10 +29,17 @@ export async function POST(req: Request) {
   if (!session) return apiError("请先登录", 401);
 
   const body = await req.json();
-  const { slotId, orderId, depositType, fee, photo } = body;
+  const { slotId, orderId, depositType, photo, durationMinutes } = body;
 
   if (!slotId || !depositType) return apiError("缺少必要参数");
   if (!["trade", "storage"].includes(depositType)) return apiError("寄存类型无效");
+
+  // 计算存储费用
+  const { calculateCabinetFee, CABINET_PRICING } = await import("@/lib/pricing");
+  const isMarketplace = depositType === "trade" && !!orderId;
+  const selectedMinutes = durationMinutes || 1440; // 默认1天
+  const prepaidFee = calculateCabinetFee(selectedMinutes, selectedMinutes, isMarketplace);
+  const expiresAt = new Date(Date.now() + selectedMinutes * 60 * 1000);
 
   const pickupCode = crypto.randomUUID().replace(/-/g, "").slice(0, 6);
 
@@ -60,9 +67,11 @@ export async function POST(req: Request) {
         pickupCode,
         status: "active",
         depositorId: session.userId,
-        fee: fee || null,
+        fee: prepaidFee,
+        prepaidFee,
+        durationHours: Math.ceil(selectedMinutes / 60),
         photo: photo || null,
-        expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3天后过期
+        expiresAt,
       },
     });
 
