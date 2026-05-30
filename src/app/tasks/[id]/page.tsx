@@ -181,9 +181,14 @@ export default function TaskDetailPage() {
           </div>
           <div className="border-t pt-4 space-y-2 text-sm text-gray-500">
             <p>发布者：<Link href={`/user/${task.publisherId}`} className="text-blue-600 hover:underline">{String(task.publisher?.nickname || "")}</Link></p>
-            {isAssignee && <p>接单人：<span className="text-green-600 font-medium">你</span></p>}
-            {!isAssignee && String((task.assignee as Record<string, unknown>)?.nickname || "") && (
-              <p>接单人：<span className="text-blue-600">{String((task.assignee as Record<string, unknown>)?.nickname || "")}</span></p>
+            {task.assigneeId ? (
+              isAssignee ? (
+                <p>接单人：<span className="text-green-600 font-medium">你</span></p>
+              ) : (
+                <p>接单人：<Link href={`/user/${task.assigneeId}`} className="text-blue-600 hover:underline">{String(task.assignee?.nickname || "")}</Link></p>
+              )
+            ) : (
+              <p>接单人：<span className="text-gray-400">等待接单</span></p>
             )}
             <p>位置：{(task.location || "未填写")}</p>
             {(task.deadline || "") && <p>截止时间：{new Date(String(task.deadline)).toLocaleString("zh-CN")}</p>}
@@ -194,7 +199,7 @@ export default function TaskDetailPage() {
       </Card>
 
       {/* 订单状态（已接单后显示） */}
-      {showOrderInfo && (
+      {showOrderInfo && task.assigneeId && (
         <Card className="mt-4">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
