@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { getCreditPermissions, getExecutionDeadline } from "@/lib/credit";
+import { generateOrderNo, ORDER_STATUS } from "@/lib/order-state-machine";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -25,12 +26,39 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (task.status !== "open") throw new Error("该任务不可接单");
     if (task.publisherId === session.userId) throw new Error("不能接自己发布的任务");
 
-    const order = task.orderItems[0]?.order;
-    if (!order) throw new Error("任务订单不存在");
+    let order = task.orderItems[0]?.order;
+
+    // 兼容旧任务：没有关联订单时自动创建（后付模式）
+    if (!order) {
+      const effectivePrice = task.budget;
+      if (!effectivePrice || effectivePrice <= 0) throw new Error("任务金额无效，请联系发布者");
+      const orderNo = generateOrderNo();
+      order = await tx.order.create({
+        data: {
+          orderNo,
+          schoolId: task.schoolId,
+          buyerId: task.publisherId,
+          sellerId: session.userId,
+          orderType: "task",
+          bizType: "market",
+          status: ORDER_STATUS.PENDING_PAYMENT,
+          totalAmount: effectivePrice,
+          note: `任务接单：${task.title}`,
+        },
+      });
+      await tx.orderItem.create({
+        data: { orderId: order.id, taskId: task.id, quantity: 1, unitPrice: effectivePrice, totalPrice: effectivePrice },
+      });
+    } else {
+      // 预付模式：更新 sellerId 为真正的接单者
+      await tx.order.update({
+        where: { id: order.id },
+        data: { sellerId: session.userId },
+      });
+    }
 
     const acceptedAt = new Date();
 
-    // 更新任务：指派接单人
     await tx.task.update({
       where: { id, status: "open" },
       data: {
@@ -41,13 +69,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
     });
 
-    // 更新订单：把占位的 sellerId 改为真正的接单者
-    await tx.order.update({
-      where: { id: order.id },
-      data: { sellerId: session.userId },
-    });
-
-    // 通知发布者
     await tx.message.create({
       data: {
         schoolId: task.schoolId,
@@ -61,7 +82,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     return { orderId: order.id, taskTitle: task.title };
   }).catch((err: Error) => {
-    if (["任务不存在", "该任务不可接单", "不能接自己发布的任务", "任务订单不存在"].includes(err.message)) {
+    if (["任务不存在", "该任务不可接单", "不能接自己发布的任务", "任务金额无效，请联系发布者"].includes(err.message)) {
       return null;
     }
     throw err;

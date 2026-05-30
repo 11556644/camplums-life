@@ -96,6 +96,10 @@ export default function OrderDetailPage() {
 
   const statusInfo = STATUS_LABELS[(order.status as string)] || { label: order.status as string, color: "bg-gray-100" };
   const canDispute = ["paid", "shipped", "delivered", "completed", "disputed"].includes(order.status as string);
+  const isBuyer = user.id === String(order.buyerId);
+  const isSeller = user.id === String(order.sellerId);
+  const orderType = order.orderType as string;
+  const orderStatus = order.status as string;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl">
@@ -119,11 +123,60 @@ export default function OrderDetailPage() {
             <p>卖家：{String((order.seller as Record<string, unknown>)?.nickname || "")}</p>
           </div>
 
-          {/* 物流 */}
-          {(order.status === "shipped" || order.status === "delivered") && (
+          {/* 物流（商品订单发货后） */}
+          {orderType === "product" && (orderStatus === "shipped" || orderStatus === "delivered") && (
             <Link href={`/logistics/${order.id}`}>
               <Button variant="outline" className="w-full">查看物流</Button>
             </Link>
+          )}
+
+          {/* 卖家：发货（商品订单已支付） */}
+          {orderType === "product" && orderStatus === "paid" && isSeller && (
+            <Button className="w-full" onClick={async () => {
+              const res = await fetch(`/api/orders/${params.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ship" }) });
+              const d = await res.json();
+              if (d.success) { toast.success("已发货"); const r2 = await fetch(`/api/orders/${params.id}`); const d2 = await r2.json(); if (d2.success) setOrder(d2.data); } else toast.error(d.error);
+            }}>发货</Button>
+          )}
+
+          {/* 接单者：开始执行（任务订单已支付） */}
+          {orderType === "task" && orderStatus === "paid" && isSeller && (
+            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={async () => {
+              const res = await fetch(`/api/orders/${params.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start" }) });
+              const d = await res.json();
+              if (d.success) { toast.success("已开始执行"); const r2 = await fetch(`/api/orders/${params.id}`); const d2 = await r2.json(); if (d2.success) setOrder(d2.data); } else toast.error(d.error);
+            }}>开始执行</Button>
+          )}
+
+          {/* 接单者：标记完成（任务订单执行中） */}
+          {orderType === "task" && orderStatus === "in_progress" && isSeller && (
+            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={async () => {
+              const taskId = order.items?.[0]?.taskId;
+              if (!taskId) return toast.error("任务ID缺失");
+              const res = await fetch(`/api/tasks/${taskId}/complete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: params.id, supplierDone: true }) });
+              const d = await res.json();
+              if (d.success) { toast.success("已标记完成"); const r2 = await fetch(`/api/orders/${params.id}`); const d2 = await r2.json(); if (d2.success) setOrder(d2.data); } else toast.error(d.error);
+            }}>标记完成</Button>
+          )}
+
+          {/* 发布者：确认完成（任务订单执行中） */}
+          {orderType === "task" && orderStatus === "in_progress" && isBuyer && (
+            <Button className="w-full" onClick={async () => {
+              const taskId = order.items?.[0]?.taskId;
+              if (!taskId) return toast.error("任务ID缺失");
+              const res = await fetch(`/api/tasks/${taskId}/complete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: params.id }) });
+              const d = await res.json();
+              if (d.success) { toast.success("任务已完成"); const r2 = await fetch(`/api/orders/${params.id}`); const d2 = await r2.json(); if (d2.success) setOrder(d2.data); } else toast.error(d.error);
+            }}>确认完成</Button>
+          )}
+
+          {/* 买家：确认收货（商品订单已发货/已送达） */}
+          {orderType === "product" && (orderStatus === "shipped" || orderStatus === "delivered") && isBuyer && (
+            <Button className="w-full" onClick={async () => {
+              const res = await fetch(`/api/orders/${params.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "complete" }) });
+              const d = await res.json();
+              if (d.success) { toast.success("已确认收货"); const r2 = await fetch(`/api/orders/${params.id}`); const d2 = await r2.json(); if (d2.success) setOrder(d2.data); } else toast.error(d.error);
+            }}>确认收货</Button>
           )}
 
           {/* 评价 */}

@@ -37,6 +37,7 @@ export default function ProductDetailPage() {
   const [ordering, setOrdering] = useState(false);
   const [activePhoto, setActivePhoto] = useState(0);
   const [favorited, setFavorited] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     fetch(`/api/products/${params.id}`)
@@ -90,6 +91,25 @@ export default function ProductDetailPage() {
     try { photos = JSON.parse(product.images); } catch { photos = []; }
   }
 
+  const isSeller = user?.id === product.seller.id;
+
+  const handleDelist = async (action: "delist" | "relist") => {
+    setActionLoading(true);
+    const res = await fetch(`/api/products/${params.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast.success(action === "delist" ? "已下架" : "已重新上架");
+      const r2 = await fetch(`/api/products/${params.id}`);
+      const d2 = await r2.json();
+      if (d2.success) setProduct(d2.data);
+    } else toast.error(data.error);
+    setActionLoading(false);
+  };
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <Card>
@@ -133,7 +153,22 @@ export default function ProductDetailPage() {
             <p>位置：{product.location || product.seller.dormitory || "未填写"}</p>
             <p>发布时间：{new Date(product.createdAt).toLocaleDateString("zh-CN")}</p>
           </div>
-          {product.status === "active" && user?.id !== product.seller.id && (
+          {/* 卖家操作 */}
+          {isSeller && product.status === "active" && (
+            <Button variant="outline" className="w-full text-red-600 border-red-200 hover:bg-red-50"
+              onClick={() => handleDelist("delist")} disabled={actionLoading}>
+              下架商品
+            </Button>
+          )}
+          {isSeller && product.status === "delisted" && (
+            <Button variant="outline" className="w-full text-green-600 border-green-200 hover:bg-green-50"
+              onClick={() => handleDelist("relist")} disabled={actionLoading}>
+              重新上架
+            </Button>
+          )}
+
+          {/* 买家操作 */}
+          {product.status === "active" && !isSeller && (
             <div className="space-y-2">
               <div className="flex gap-2">
                 <Button className="flex-1" size="lg" onClick={handleOrder} disabled={ordering}>

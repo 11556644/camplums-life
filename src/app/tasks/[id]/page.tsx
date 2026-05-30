@@ -155,10 +155,9 @@ export default function TaskDetailPage() {
   const orderStatus = order?.status ?? "";
   const os = order ? ORDER_STATUS[orderStatus] || { label: orderStatus, color: "bg-gray-100" } : null;
   const supplierDone = Boolean(task.supplierDoneAt);
-  const showOrderInfo = order !== null;
-  const showStartBtn: boolean = orderStatus === "paid" && isAssignee;
-  const showSupplierDoneBtn: boolean = orderStatus === "in_progress" && isAssignee;
-  const showConfirmBtn: boolean = orderStatus === "in_progress" && isPublisher;
+  const showStartBtn: boolean = !!order && orderStatus === "paid" && isAssignee;
+  const showSupplierDoneBtn: boolean = !!order && orderStatus === "in_progress" && isAssignee;
+  const showConfirmBtn: boolean = !!order && orderStatus === "in_progress" && isPublisher;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
@@ -199,23 +198,23 @@ export default function TaskDetailPage() {
       </Card>
 
       {/* 订单状态（已接单后显示） */}
-      {showOrderInfo && task.assigneeId && (
+      {order && task.assigneeId && (
         <Card className="mt-4">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">订单信息</CardTitle>
               <div className="flex gap-1">
                 {os && <Badge className={os.color}>{os.label}</Badge>}
-                <Link href={`/orders/${String(order!.id)}`}>
+                <Link href={`/orders/${order.id}`}>
                   <Button variant="ghost" size="sm">订单详情</Button>
                 </Link>
               </div>
             </div>
           </CardHeader>
           <CardContent className="text-sm text-gray-500 space-y-1">
-            <p>订单号：{String(order.orderNo)}</p>
-            <p>金额：¥{String(order!.totalAmount)}</p>
-            {String(order.paidAt || "") && <p>支付时间：{new Date(String(order.paidAt)).toLocaleString("zh-CN")}</p>}
+            <p>订单号：{order.orderNo}</p>
+            <p>金额：¥{order.totalAmount}</p>
+            {order.paidAt && <p>支付时间：{new Date(order.paidAt).toLocaleString("zh-CN")}</p>}
           </CardContent>
         </Card>
       )}
