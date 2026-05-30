@@ -37,6 +37,22 @@ export default function OrderDetailPage() {
   const [disputeDesc, setDisputeDesc] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const refreshOrder = async () => {
+    const res = await fetch(`/api/orders/${params.id}`);
+    const d = await res.json();
+    if (d.success) setOrder(d.data);
+  };
+
+  const handleAction = async (action: string) => {
+    const res = await fetch(`/api/orders/${params.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const d = await res.json();
+    if (d.success) { toast.success("操作成功"); refreshOrder(); } else toast.error(d.error);
+  };
+
   useEffect(() => {
     if (!user) { router.push("/login"); return; }
     const fetchOrder = async () => {
@@ -121,7 +137,39 @@ export default function OrderDetailPage() {
           <div className="border-t pt-3 space-y-1 text-sm text-gray-500">
             <p>买家：{String((order.buyer as Record<string, unknown>)?.nickname || "")}</p>
             <p>卖家：{String((order.seller as Record<string, unknown>)?.nickname || "")}</p>
+            {order.note ? <p className="text-gray-400">备注：{String(order.note)}</p> : null}
           </div>
+
+          {/* 柜机取件信息 */}
+          {Array.isArray(order.cabinetBindings) && order.cabinetBindings.length > 0 && (
+            <div className="border-t pt-3 space-y-1 text-sm">
+              <p className="font-medium">📦 取件信息</p>
+              {order.cabinetBindings.map((b: Record<string, unknown>) => {
+                const slot = b.slot as Record<string, unknown> | undefined;
+                const cabinet = slot?.cabinet as Record<string, unknown> | undefined;
+                return (
+                  <div key={String(b.id)} className="bg-blue-50 rounded p-2 text-blue-800 text-xs space-y-1">
+                    <p>柜机：{String(cabinet?.name || "")}（{String(cabinet?.location || "")}）</p>
+                    <p>格口：{String(slot?.slotNumber || "")}</p>
+                    {String(b.pickupCode ?? "") !== "" && <p>取件码：<span className="font-bold text-base">{String(b.pickupCode)}</span></p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 支付记录 */}
+          {Array.isArray(order.payments) && order.payments.length > 0 && (
+            <div className="border-t pt-3 text-sm text-gray-500 space-y-1">
+              <p className="font-medium text-gray-700">支付信息</p>
+              {order.payments.map((p: Record<string, unknown>) => (
+                <p key={String(p.id)}>
+                  方式：{String(p.method || "—")}　金额：¥{String(p.amount)}
+                  {p.paidAt ? new Date(String(p.paidAt)).toLocaleString("zh-CN") : ""}
+                </p>
+              ))}
+            </div>
+          )}
 
           {/* 物流（商品订单发货后） */}
           {orderType === "product" && (orderStatus === "shipped" || orderStatus === "delivered") && (
@@ -130,57 +178,105 @@ export default function OrderDetailPage() {
             </Link>
           )}
 
+          {/* 买家等待发货提示 */}
+          {orderType === "product" && orderStatus === "paid" && isBuyer && (
+            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-700">
+              卖家尚未发货，请耐心等待。
+            </div>
+          )}
+
           {/* 卖家：发货（商品订单已支付） */}
           {orderType === "product" && orderStatus === "paid" && isSeller && (
-            <Button className="w-full" onClick={async () => {
-              const res = await fetch(`/api/orders/${params.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "ship" }) });
-              const d = await res.json();
-              if (d.success) { toast.success("已发货"); const r2 = await fetch(`/api/orders/${params.id}`); const d2 = await r2.json(); if (d2.success) setOrder(d2.data); } else toast.error(d.error);
-            }}>发货</Button>
+            <Button className="w-full" onClick={() => handleAction("ship")}>发货</Button>
+          )}
+
+          {/* 卖家：确认送达（商品订单已发货） */}
+          {orderType === "product" && orderStatus === "shipped" && isSeller && (
+            <Button className="w-full" onClick={() => handleAction("deliver")}>确认送达</Button>
           )}
 
           {/* 接单者：开始执行（任务订单已支付） */}
           {orderType === "task" && orderStatus === "paid" && isSeller && (
-            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={async () => {
-              const res = await fetch(`/api/orders/${params.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start" }) });
-              const d = await res.json();
-              if (d.success) { toast.success("已开始执行"); const r2 = await fetch(`/api/orders/${params.id}`); const d2 = await r2.json(); if (d2.success) setOrder(d2.data); } else toast.error(d.error);
-            }}>开始执行</Button>
+            <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={() => handleAction("start")}>开始执行</Button>
           )}
 
           {/* 接单者：标记完成（任务订单执行中） */}
           {orderType === "task" && orderStatus === "in_progress" && isSeller && (
             <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={async () => {
-              const taskId = order.items?.[0]?.taskId;
+              const taskId = (order.items as Array<{ taskId?: string }>)?.[0]?.taskId;
               if (!taskId) return toast.error("任务ID缺失");
               const res = await fetch(`/api/tasks/${taskId}/complete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: params.id, supplierDone: true }) });
               const d = await res.json();
-              if (d.success) { toast.success("已标记完成"); const r2 = await fetch(`/api/orders/${params.id}`); const d2 = await r2.json(); if (d2.success) setOrder(d2.data); } else toast.error(d.error);
+              if (d.success) { toast.success("已标记完成"); refreshOrder(); } else toast.error(d.error);
             }}>标记完成</Button>
           )}
 
           {/* 发布者：确认完成（任务订单执行中） */}
           {orderType === "task" && orderStatus === "in_progress" && isBuyer && (
             <Button className="w-full" onClick={async () => {
-              const taskId = order.items?.[0]?.taskId;
+              const taskId = (order.items as Array<{ taskId?: string }>)?.[0]?.taskId;
               if (!taskId) return toast.error("任务ID缺失");
               const res = await fetch(`/api/tasks/${taskId}/complete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: params.id }) });
               const d = await res.json();
-              if (d.success) { toast.success("任务已完成"); const r2 = await fetch(`/api/orders/${params.id}`); const d2 = await r2.json(); if (d2.success) setOrder(d2.data); } else toast.error(d.error);
+              if (d.success) { toast.success("任务已完成"); refreshOrder(); } else toast.error(d.error);
             }}>确认完成</Button>
           )}
 
           {/* 买家：确认收货（商品订单已发货/已送达） */}
           {orderType === "product" && (orderStatus === "shipped" || orderStatus === "delivered") && isBuyer && (
-            <Button className="w-full" onClick={async () => {
-              const res = await fetch(`/api/orders/${params.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "complete" }) });
-              const d = await res.json();
-              if (d.success) { toast.success("已确认收货"); const r2 = await fetch(`/api/orders/${params.id}`); const d2 = await r2.json(); if (d2.success) setOrder(d2.data); } else toast.error(d.error);
-            }}>确认收货</Button>
+            <Button className="w-full" onClick={() => handleAction("complete")}>确认收货</Button>
           )}
 
-          {/* 评价 */}
-          {order.status === "completed" && (
+          {/* 取消订单 */}
+          {(orderStatus === "pending_payment" || orderStatus === "paid") && (
+            <Button variant="outline" className="w-full text-red-600 border-red-200 hover:bg-red-50"
+              onClick={() => {
+                if (!confirm("确定取消此订单？")) return;
+                handleAction("cancel");
+              }}>
+              取消订单
+            </Button>
+          )}
+
+          {/* 已有投诉展示 */}
+          {Array.isArray(order.disputes) && order.disputes.length > 0 && (
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-red-600 mb-2">投诉记录</h3>
+              {order.disputes.map((d: Record<string, unknown>) => (
+                <div key={String(d.id)} className="bg-red-50 border border-red-200 rounded p-3 text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="font-medium">{String(d.reason || "")}</span>
+                    <Badge className={d.status === "resolved" ? "bg-green-100 text-green-800" : d.status === "rejected" ? "bg-gray-100" : "bg-yellow-100 text-yellow-800"}>
+                      {d.status === "resolved" ? "已解决" : d.status === "rejected" ? "已驳回" : "处理中"}
+                    </Badge>
+                  </div>
+                  <p className="text-gray-600">{String(d.description || "")}</p>
+                  {String(d.resolution ?? "") !== "" && <p className="text-green-700">处理结果：{String(d.resolution)}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 已有评价展示 */}
+          {order.status === "completed" && Array.isArray(order.ratings) && order.ratings.length > 0 && (
+            <div className="border-t pt-4">
+              <h3 className="font-medium mb-2">评价</h3>
+              {order.ratings.map((r: Record<string, unknown>) => (
+                <div key={String(r.id)} className="bg-gray-50 rounded p-3 text-sm">
+                  <div className="flex gap-0.5 mb-1">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <span key={s} className={s <= Number(r.score || 0) ? "text-yellow-400" : "text-gray-300"}>★</span>
+                    ))}
+                    <span className="ml-2 text-gray-400 text-xs">{r.createdAt ? new Date(String(r.createdAt)).toLocaleDateString("zh-CN") : ""}</span>
+                  </div>
+                  {String(r.content ?? "") !== "" && <p className="text-gray-600">{String(r.content)}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 评价（未评过才显示表单） */}
+          {order.status === "completed" && (!Array.isArray(order.ratings) || order.ratings.length === 0) && (
             <div className="border-t pt-4">
               <h3 className="font-medium mb-2">评价</h3>
               <div className="space-y-2">
@@ -196,8 +292,8 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* 投诉 */}
-          {canDispute && (
+          {/* 投诉（没有已有投诉时显示按钮） */}
+          {canDispute && (!Array.isArray(order.disputes) || order.disputes.length === 0) && (
             <div className="border-t pt-4">
               {!showDispute ? (
                 <Button variant="outline" className="w-full text-red-600 border-red-200 hover:bg-red-50"

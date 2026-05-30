@@ -49,6 +49,8 @@ interface TaskDetail {
   assigneeId: string | null;
   location: string | null;
   deadline: string | null;
+  acceptedAt: string | null;
+  executionDeadline: string | null;
   supplierDoneAt: string | null;
   createdAt: string;
   publisher: { id: string; nickname: string; dormitory: string | null; department: string | null };
@@ -89,6 +91,19 @@ export default function TaskDetailPage() {
       toast.error(data.error);
     }
     setAccepting(false);
+  };
+
+  const handlePay = async () => {
+    if (!task?.order) return;
+    setActionLoading(true);
+    const res = await fetch(`/api/orders/${task.order.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "pay" }),
+    });
+    const data = await res.json();
+    if (data.success) { toast.success("支付成功，等待接单者开始执行"); fetchTask(); } else toast.error(data.error);
+    setActionLoading(false);
   };
 
   const handleCancelTask = async () => {
@@ -155,9 +170,6 @@ export default function TaskDetailPage() {
   const orderStatus = order?.status ?? "";
   const os = order ? ORDER_STATUS[orderStatus] || { label: orderStatus, color: "bg-gray-100" } : null;
   const supplierDone = Boolean(task.supplierDoneAt);
-  const showStartBtn: boolean = !!order && orderStatus === "paid" && isAssignee;
-  const showSupplierDoneBtn: boolean = !!order && orderStatus === "in_progress" && isAssignee;
-  const showConfirmBtn: boolean = !!order && orderStatus === "in_progress" && isPublisher;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
@@ -192,19 +204,27 @@ export default function TaskDetailPage() {
             <p>位置：{(task.location || "未填写")}</p>
             {(task.deadline || "") && <p>截止时间：{new Date(String(task.deadline)).toLocaleString("zh-CN")}</p>}
             <p>执行时限：{TASK_EXEC_LIMITS[task.type] || "2小时"}</p>
+            {task.executionDeadline && (
+              <p>执行截止：<span className={new Date(task.executionDeadline) < new Date() ? "text-red-600 font-medium" : "text-orange-600"}>
+                {new Date(task.executionDeadline).toLocaleString("zh-CN")}
+                {new Date(task.executionDeadline) < new Date() ? "（已超时）" : ""}
+              </span></p>
+            )}
+            {task.acceptedAt && <p>接单时间：{new Date(task.acceptedAt).toLocaleString("zh-CN")}</p>}
             <p>发布时间：{new Date(task.createdAt).toLocaleString("zh-CN")}</p>
           </div>
         </CardContent>
       </Card>
 
-      {/* 订单状态（已接单后显示） */}
-      {order && task.assigneeId && (
+      {/* 订单状态（已接单后显示） — 接单者在 assigned+pending_payment 时不显示，避免误以为需要自己付款 */}
+      {order && task.assigneeId && !(String(task.status) === "assigned" && isAssignee && orderStatus === "pending_payment") && (
         <Card className="mt-4">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">订单信息</CardTitle>
               <div className="flex gap-1">
-                {os && <Badge className={os.color}>{os.label}</Badge>}
+                {/* 接单者在 assigned 状态不展示订单状态徽章（预付订单已 paid，遗留订单的待支付是发布者的事） */}
+                {os && !(String(task.status) === "assigned" && isAssignee) && <Badge className={os.color}>{os.label}</Badge>}
                 <Link href={`/orders/${order.id}`}>
                   <Button variant="ghost" size="sm">订单详情</Button>
                 </Link>
@@ -221,7 +241,7 @@ export default function TaskDetailPage() {
 
       {/* 操作区域 */}
       <div className="mt-4 space-y-3">
-        {/* 接单（开放状态 + 非发布者） */}
+        {/* 接单（开放状态 + 非发布者 + 已登录） */}
         {String(task.status) === "open" && !isPublisher && user && (
           <Card>
             <CardContent className="pt-4">
@@ -233,14 +253,91 @@ export default function TaskDetailPage() {
           </Card>
         )}
 
-        {/* 发布者：取消任务（开放或已接单状态） */}
-        {isPublisher && ["open", "assigned"].includes(String(task.status)) && (
+        {/* 已接单：等待 / 支付 / 开始执行 */}
+        {String(task.status) === "assigned" && (
+          <>
+            {isPublisher && (
+              <Card>
+                <CardContent className="pt-4 space-y-2">
+                  {orderStatus === "pending_payment" ? (
+                    <>
+                      <p className="text-sm text-gray-600">接单者已接单，请完成支付以启动任务。</p>
+                      <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={handlePay} disabled={actionLoading}>
+                        立即支付 ¥{order?.totalAmount || task.budget}
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500">接单者已接单，等待开始执行。</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {isAssignee && (
+              <Card>
+                <CardContent className="pt-4">
+                  {orderStatus === "paid" ? (
+                    <>
+                      <p className="text-sm text-gray-600 mb-3">发布者已支付，请开始执行任务。</p>
+                      <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={handleStart} disabled={actionLoading}>
+                        开始执行
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500">任务已接单，等待发布者确认后即可开始执行。</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* 进行中：标记完成 / 确认验收 */}
+        {String(task.status) === "in_progress" && (
+          <>
+            {isAssignee && (
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-sm text-gray-600 mb-3">任务执行中，完成后请标记。</p>
+                  {!supplierDone ? (
+                    <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={handleSupplierDone} disabled={actionLoading}>
+                      标记完成
+                    </Button>
+                  ) : (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm text-yellow-800">
+                      已标记完成，等待发布者确认验收。
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {isPublisher && (
+              <Card>
+                <CardContent className="pt-4">
+                  {supplierDone ? (
+                    <>
+                      <p className="text-sm text-green-600 mb-3">服务方已标记完成，请确认验收。</p>
+                      <Button className="w-full" onClick={handleConfirm} disabled={actionLoading}>确认验收完成</Button>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500">服务方正在执行中，请等待完成。</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* 发布者：取消任务（未接单 或 已接单但未支付） */}
+        {isPublisher && (
+          (String(task.status) === "open") ||
+          (String(task.status) === "assigned" && (!order || orderStatus === "pending_payment"))
+        ) && (
           <Card>
             <CardContent className="pt-4 space-y-2">
               <p className="text-sm text-gray-600">
                 {String(task.status) === "open"
                   ? "任务已预付，正在等待接单。取消可全额退款。"
-                  : "任务已被接单，取消将退款并释放任务。"}
+                  : "取消任务将退款并释放。"}
               </p>
               <Button variant="outline" className="w-full text-red-600 border-red-200 hover:bg-red-50"
                 onClick={handleCancelTask} disabled={actionLoading}>
@@ -250,57 +347,27 @@ export default function TaskDetailPage() {
           </Card>
         )}
 
-        {/* 接单者：已支付 → 开始执行 */}
-        {showStartBtn && (
-          <Card>
-            <CardContent className="pt-4">
-              <p className="text-sm text-gray-600 mb-3">发布者已支付，请开始执行任务。</p>
-              <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={handleStart} disabled={actionLoading}>
-                开始执行
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* 接单者：执行中标记完成 */}
-        {showSupplierDoneBtn && (
-          <Card>
-            <CardContent className="pt-4">
-              <p className="text-sm text-gray-600 mb-3">任务执行中，完成后请标记。</p>
-              {!supplierDone ? (
-                <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={handleSupplierDone} disabled={actionLoading}>
-                  标记完成
-                </Button>
-              ) : (
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm text-yellow-800">
-                  已标记完成，等待发布者确认验收。
+        {/* 已完成 */}
+        {String(task.status) === "completed" && (
+          <Card className="bg-green-50 border-green-200">
+            <CardContent className="pt-4 text-center text-green-700 space-y-3">
+              <p>任务已完成。</p>
+              {task.order && (
+                <div className="flex gap-2 justify-center">
+                  <Link href={`/orders/${task.order.id}`}>
+                    <Button variant="outline" size="sm">查看订单 / 评价</Button>
+                  </Link>
                 </div>
               )}
             </CardContent>
           </Card>
         )}
 
-        {/* 发布者：执行中 → 确认完成 */}
-        {showConfirmBtn && (
-          <Card>
-            <CardContent className="pt-4">
-              {supplierDone ? (
-                <>
-                  <p className="text-sm text-green-600 mb-3">服务方已标记完成，请确认验收。</p>
-                  <Button className="w-full" onClick={handleConfirm} disabled={actionLoading}>确认验收完成</Button>
-                </>
-              ) : (
-                <p className="text-sm text-gray-500">服务方正在执行中，请等待完成。</p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* 已完成 */}
-        {String(task.status) === "completed" && (
-          <Card className="bg-green-50 border-green-200">
-            <CardContent className="pt-4 text-center text-green-700">
-              任务已完成。
+        {/* 已取消 */}
+        {String(task.status) === "cancelled" && (
+          <Card className="bg-red-50 border-red-200">
+            <CardContent className="pt-4 text-center text-red-700">
+              任务已取消。
             </CardContent>
           </Card>
         )}

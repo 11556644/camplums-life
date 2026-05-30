@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/stores/auth";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +32,7 @@ const TX_LABELS: Record<string, { label: string; color: string }> = {
   topup: { label: "充值", color: "text-green-600" },
   pay: { label: "支付", color: "text-red-600" },
   refund: { label: "退款", color: "text-blue-600" },
+  settlement: { label: "结算收入", color: "text-emerald-600" },
 };
 
 const METHOD_LABELS: Record<string, string> = {
@@ -178,6 +180,9 @@ export default function WalletPage() {
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5">
                         {new Date(tx.createdAt).toLocaleString("zh-CN")}
+                        {tx.orderId && (
+                          <Link href={`/orders/${tx.orderId}`} className="ml-2 text-blue-500 hover:underline">查看订单</Link>
+                        )}
                       </div>
                     </div>
                     <div className={`text-right font-medium ${tx.amount >= 0 ? "text-green-600" : "text-red-600"}`}>

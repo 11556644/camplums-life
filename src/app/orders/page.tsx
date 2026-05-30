@@ -172,6 +172,27 @@ export default function OrdersPage() {
     }
   };
 
+  const handleCancel = async (orderId: string) => {
+    if (!confirm("确定取消此订单？")) return;
+    const res = await fetch(`/api/orders/${orderId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "cancel" }),
+    });
+    const data = await res.json();
+    if (data.success) { toast.success("订单已取消"); refreshOrders(); } else toast.error(data.error);
+  };
+
+  const handleDeliver = async (orderId: string) => {
+    const res = await fetch(`/api/orders/${orderId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "deliver" }),
+    });
+    const data = await res.json();
+    if (data.success) { toast.success("已确认送达"); refreshOrders(); } else toast.error(data.error);
+  };
+
   if (!user) return null;
 
   return (
@@ -249,6 +270,10 @@ export default function OrdersPage() {
                       {order.status === "paid" && role === "seller" && order.orderType === "product" && (
                         <Button size="sm" onClick={() => handleShip(order.id)}>发货</Button>
                       )}
+                      {/* 商品订单：卖家确认送达 */}
+                      {order.status === "shipped" && role === "seller" && order.orderType === "product" && (
+                        <Button size="sm" onClick={() => handleDeliver(order.id)}>确认送达</Button>
+                      )}
                       {/* 任务订单：服务者开始执行 */}
                       {order.status === "paid" && role === "seller" && order.orderType === "task" && (
                         <Button size="sm" onClick={() => handleStart(order.id)}>开始执行</Button>
@@ -278,6 +303,10 @@ export default function OrdersPage() {
                       {/* 教材订阅：归还入口 */}
                       {order.orderType === "subscription" && ["paid", "in_progress"].includes(order.status) && (
                         <Button variant="outline" size="sm" onClick={() => router.push("/textbooks/my")}>我的教材</Button>
+                      )}
+                      {/* 取消订单 */}
+                      {(order.status === "pending_payment" || order.status === "paid") && (
+                        <Button variant="outline" size="sm" className="text-red-600 border-red-200" onClick={() => handleCancel(order.id)}>取消</Button>
                       )}
                       <Button variant="ghost" size="sm" onClick={() => router.push(`/orders/${order.id}`)}>详情</Button>
                     </div>

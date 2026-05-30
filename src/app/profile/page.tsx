@@ -46,7 +46,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ nickname: "", department: "", dormitory: "", roomNumber: "" });
-  const [tab, setTab] = useState<"orders" | "published" | "tasks" | "favorites" | "productFav">("orders");
+  const [tab, setTab] = useState<"orders" | "sellerOrders" | "published" | "tasks" | "favorites" | "productFav">("orders");
   const [favorites, setFavorites] = useState<Array<{ id: string; title: string; content: string; board: { id: string; name: string }; likeCount: number; commentCount: number; createdAt: string }>>([]);
   const [loadingFav, setLoadingFav] = useState(false);
   const [productFavs, setProductFavs] = useState<Array<{ id: string; title: string; price: number; status: string; images: string[]; isExpired: boolean; category: string }>>([]);
@@ -174,7 +174,7 @@ export default function ProfilePage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Link href="/orders"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">📦</div><div className="text-sm font-medium">我的订单</div></CardContent></Card></Link>
         <Link href="/textbooks/my"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">📖</div><div className="text-sm font-medium">我的借阅</div></CardContent></Card></Link>
-        <Link href="/wallet"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">💰</div><div className="text-sm font-medium">钱包</div><div className="text-xs text-gray-400">¥{profile.wallet?.balance ?? 0}</div></CardContent></Card></Link>
+        <Link href="/wallet"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">💰</div><div className="text-sm font-medium">钱包</div><div className="text-xs text-gray-400">¥{profile.wallet?.balance ?? 0}{profile.wallet?.frozen ? <span className="text-orange-500 ml-1">(冻结¥{profile.wallet.frozen})</span> : ""}</div></CardContent></Card></Link>
         <Link href="/chats"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">💬</div><div className="text-sm font-medium">聊天</div></CardContent></Card></Link>
         <Link href="/messages"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">🔔</div><div className="text-sm font-medium">消息通知</div></CardContent></Card></Link>
         <Link href="/disputes"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">⚠️</div><div className="text-sm font-medium">投诉记录</div></CardContent></Card></Link>
@@ -186,10 +186,10 @@ export default function ProfilePage() {
       <Card>
         <CardHeader>
           <div className="flex gap-4 border-b">
-            {(["orders", "published", "tasks", "favorites", "productFav"] as const).map(t => (
+            {(["orders", "sellerOrders", "published", "tasks", "favorites", "productFav"] as const).map(t => (
               <button key={t} onClick={() => setTab(t)}
                 className={`pb-2 text-sm font-medium border-b-2 transition-colors ${tab === t ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"}`}>
-                {t === "orders" ? "我的订单" : t === "published" ? "发布商品" : t === "tasks" ? "发布任务" : t === "favorites" ? "贴吧收藏" : "商品收藏"}
+                {t === "orders" ? "我买的" : t === "sellerOrders" ? "我卖的" : t === "published" ? "发布商品" : t === "tasks" ? "发布任务" : t === "favorites" ? "贴吧收藏" : "商品收藏"}
               </button>
             ))}
           </div>
@@ -205,6 +205,21 @@ export default function ProfilePage() {
                       <Badge className="ml-2" variant="outline">{STATUS_LABELS[o.status] || o.status}</Badge>
                     </div>
                     <span className="text-sm text-red-600 font-bold">¥{o.totalAmount}</span>
+                  </Link>
+                ))
+              }
+            </div>
+          )}
+          {tab === "sellerOrders" && (
+            <div className="space-y-2">
+              {(!profile.sellerOrders || profile.sellerOrders.length === 0) ? <p className="text-gray-400 text-sm">暂无卖出订单</p> :
+                profile.sellerOrders.map(o => (
+                  <Link key={o.id} href={`/orders/${o.id}`} className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
+                    <div>
+                      <span className="text-sm font-medium">{o.orderNo}</span>
+                      <Badge className="ml-2" variant="outline">{STATUS_LABELS[o.status] || o.status}</Badge>
+                    </div>
+                    <span className="text-sm text-green-600 font-bold">+¥{o.totalAmount}</span>
                   </Link>
                 ))
               }
