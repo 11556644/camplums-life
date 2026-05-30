@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { changeCredit } from "@/lib/credit";
 import { z } from "zod";
 
 const ratingSchema = z.object({
@@ -43,12 +44,25 @@ export async function POST(
     },
   });
 
-  // 更新信用分（带上下限保护 0-200）
-  const credit = await db.creditScore.findUnique({ where: { userId: rateeId } });
-  if (credit) {
-    const delta = parsed.data.score >= 4 ? 2 : parsed.data.score >= 3 ? 0 : -3;
-    const newScore = Math.min(200, Math.max(0, credit.score + delta));
-    await db.creditScore.update({ where: { userId: rateeId }, data: { score: newScore } });
+  // 更新信用分（通过统一信用服务）
+  if (parsed.data.score >= 4) {
+    await changeCredit({
+      userId: rateeId,
+      schoolId: order.schoolId,
+      delta: 3,
+      reason: "收到好评",
+      source: "rating",
+      orderId: order.id,
+    });
+  } else if (parsed.data.score <= 2) {
+    await changeCredit({
+      userId: rateeId,
+      schoolId: order.schoolId,
+      delta: -5,
+      reason: "收到差评",
+      source: "rating",
+      orderId: order.id,
+    });
   }
 
   await auditLog({

@@ -17,9 +17,11 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   paid: { label: "已支付", color: "bg-blue-100 text-blue-800" },
   shipped: { label: "已发货", color: "bg-purple-100 text-purple-800" },
   delivered: { label: "已送达", color: "bg-indigo-100 text-indigo-800" },
+  in_progress: { label: "进行中", color: "bg-blue-100 text-blue-800" },
   completed: { label: "已完成", color: "bg-green-100 text-green-800" },
   cancelled: { label: "已取消", color: "bg-gray-100 text-gray-800" },
   disputed: { label: "纠纷中", color: "bg-red-100 text-red-800" },
+  refunded: { label: "已退款", color: "bg-orange-100 text-orange-800" },
 };
 
 export default function OrderDetailPage() {

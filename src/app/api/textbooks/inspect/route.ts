@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { changeCredit } from "@/lib/credit";
 
 // 质检 + 消毒 + 重新上架（管理员操作）
 export async function POST(req: Request) {
@@ -116,13 +117,16 @@ export async function POST(req: Request) {
       },
     });
 
-    // 扣除信用分
-    const creditScore = await db.creditScore.findUnique({ where: { userId: copy.borrowerId } });
-    if (creditScore) {
-      const deduction = result === "retired" ? 10 : result === "major_damage" ? 5 : 2;
-      await db.creditScore.update({
-        where: { userId: copy.borrowerId },
-        data: { score: Math.max(0, creditScore.score - deduction) },
+    // 扣除信用分（通过统一信用服务）
+    const DELTA_MAP: Record<string, number> = { minor_damage: -5, major_damage: -15, retired: -40 };
+    const delta = DELTA_MAP[result];
+    if (delta) {
+      await changeCredit({
+        userId: copy.borrowerId,
+        schoolId: copy.textbook.schoolId,
+        delta,
+        reason: `书籍损坏（${result}）`,
+        source: "textbook",
       });
     }
   }

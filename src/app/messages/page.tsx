@@ -41,9 +41,9 @@ export default function MessagesPage() {
     const data = await res.json();
     if (data.success) {
       setMessages(data.data);
-      // 标记已读
+      // 标记聊天消息已读（按发送者）
       const unreadSenders = data.data
-        .filter((m: Msg) => !m.readAt && m.senderId)
+        .filter((m: Msg) => !m.readAt && m.senderId && m.type === "chat")
         .map((m: Msg) => m.senderId!)
         .filter((id: string, i: number, arr: string[]) => arr.indexOf(id) === i);
       for (const senderId of unreadSenders) {
@@ -52,6 +52,11 @@ export default function MessagesPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ senderId }),
         }).catch(() => {});
+      }
+      // 标记所有通知类消息已读
+      const hasUnreadNotifications = data.data.some((m: Msg) => !m.readAt && m.type !== "chat");
+      if (hasUnreadNotifications) {
+        fetch("/api/messages/read", { method: "PATCH" }).catch(() => {});
       }
     }
     setLoading(false);

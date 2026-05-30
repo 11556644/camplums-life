@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { generateOrderNo, ORDER_STATUS } from "@/lib/order-state-machine";
+import { getCreditPermissions, getExecutionDeadline } from "@/lib/credit";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -14,6 +15,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const user = await db.user.findUnique({ where: { id: session.userId } });
   if (!user) return apiError("用户不存在");
+
+  // 信用分门禁：接单权限校验
+  const perms = await getCreditPermissions(session.userId);
+  if (!perms.canBuy) return apiError("信用分不足，无法接单");
 
   const finalPrice = price ?? 0;
 
@@ -29,10 +34,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const effectivePrice = finalPrice > 0 ? finalPrice : task.budget;
     if (!effectivePrice || effectivePrice <= 0) throw new Error("请填写报价");
 
-    // 条件更新：只有 status=open 时才更新
+    const acceptedAt = new Date();
+
+    // 条件更新：只有 status=open 时才更新，同时写入接单人和执行截止时间
     await tx.task.update({
       where: { id, status: "open" },
-      data: { status: "assigned" },
+      data: {
+        status: "assigned",
+        assigneeId: session.userId,
+        acceptedAt,
+        executionDeadline: getExecutionDeadline(task.type, acceptedAt),
+      },
     });
 
     const order = await tx.order.create({

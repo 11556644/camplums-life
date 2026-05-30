@@ -21,7 +21,7 @@ interface UserProfile {
   roomNumber: string | null;
   enrollYear: number | null;
   roles: { role: string }[];
-  creditScore: { score: number } | null;
+  creditScore: { score: number; tier: string; totalOrders: number } | null;
   wallet: { balance: number; frozen: number } | null;
   products: { id: string; title: string; price: number; status: string }[];
   tasks: { id: string; title: string; budget: number | null; status: string }[];
@@ -145,7 +145,26 @@ export default function ProfilePage() {
               <div><span className="text-gray-500">院系：</span>{profile.department || "未填写"}</div>
               <div><span className="text-gray-500">宿舍：</span>{profile.dormitory ? `${profile.dormitory} ${profile.roomNumber || ""}` : "未填写"}</div>
               <div><span className="text-gray-500">角色：</span>{profile.roles.map(r => ROLE_LABELS[r.role] || r.role).join("、")}</div>
-              <div><span className="text-gray-500">信用分：</span><span className="font-bold text-green-600">{profile.creditScore?.score ?? 100}</span></div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">信用等级：</span>
+                {(() => {
+                  const tier = profile.creditScore?.tier || "standard";
+                  const tierInfo: Record<string, { label: string; color: string }> = {
+                    blacklist: { label: "黑名单", color: "text-red-600 bg-red-50" },
+                    restricted: { label: "受限", color: "text-orange-500 bg-orange-50" },
+                    standard: { label: "标准", color: "text-gray-600 bg-gray-50" },
+                    good: { label: "良好", color: "text-blue-600 bg-blue-50" },
+                    excellent: { label: "优秀", color: "text-green-600 bg-green-50" },
+                  };
+                  const info = tierInfo[tier] || tierInfo.standard;
+                  return (
+                    <>
+                      <span className={`font-bold px-2 py-0.5 rounded text-sm ${info.color}`}>{info.label}</span>
+                      <span className="text-sm text-gray-400">{profile.creditScore?.score ?? 600}分 · 完成{profile.creditScore?.totalOrders ?? 0}单</span>
+                    </>
+                  );
+                })()}
+              </div>
             </div>
           )}
         </CardContent>
@@ -155,7 +174,6 @@ export default function ProfilePage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Link href="/orders"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">📦</div><div className="text-sm font-medium">我的订单</div></CardContent></Card></Link>
         <Link href="/textbooks/my"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">📖</div><div className="text-sm font-medium">我的借阅</div></CardContent></Card></Link>
-        <Link href="/subscriptions/my"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">📋</div><div className="text-sm font-medium">我的订阅</div></CardContent></Card></Link>
         <Link href="/wallet"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">💰</div><div className="text-sm font-medium">钱包</div><div className="text-xs text-gray-400">¥{profile.wallet?.balance ?? 0}</div></CardContent></Card></Link>
         <Link href="/chats"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">💬</div><div className="text-sm font-medium">聊天</div></CardContent></Card></Link>
         <Link href="/messages"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">🔔</div><div className="text-sm font-medium">消息通知</div></CardContent></Card></Link>

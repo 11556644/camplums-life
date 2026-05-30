@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { changeCredit } from "@/lib/credit";
 
 // 获取投诉详情
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -59,6 +60,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!newStatus) return apiError("无效操作");
 
   try {
+    let creditChangeParams: { userId: string; schoolId: string; delta: number; reason: string } | null = null;
+
     const updated = await db.$transaction(async (tx: any) => {
       const d = await tx.dispute.update({
         where: { id },
@@ -91,9 +94,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           });
         }
 
-        // 败诉方（非发起人）扣信用分
-        const cs = await tx.creditScore.findUnique({ where: { userId: otherParty } });
-        if (cs) await tx.creditScore.update({ where: { userId: otherParty }, data: { score: Math.max(0, cs.score - 5) } });
+        // 败诉方（非发起人）扣信用分 — 标记待执行
+        creditChangeParams = { userId: otherParty, schoolId: dispute.schoolId, delta: -20, reason: "投诉败诉" };
       }
 
       if (action === "reject") {
@@ -107,13 +109,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             content: `您对订单 ${dispute.order.orderNo} 的投诉已被驳回：${resolution || "证据不足"}`,
           },
         });
-        // 恶意投诉扣信用分
-        const cs = await tx.creditScore.findUnique({ where: { userId: dispute.initiatorId } });
-        if (cs) await tx.creditScore.update({ where: { userId: dispute.initiatorId }, data: { score: Math.max(0, cs.score - 3) } });
+        // 恶意投诉扣信用分 — 标记待执行
+        creditChangeParams = { userId: dispute.initiatorId, schoolId: dispute.schoolId, delta: -10, reason: "恶意投诉被驳回" };
       }
 
       return d;
     });
+
+    // 事务外通过统一信用服务扣分
+    if (creditChangeParams) {
+      const { userId, schoolId, delta, reason } = creditChangeParams;
+      await changeCredit({ userId, schoolId, delta, reason, source: "dispute" });
+    }
 
     await auditLog({
       userId: session.userId,

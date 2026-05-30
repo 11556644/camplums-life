@@ -20,10 +20,12 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
   const role = searchParams.get("role") || "buyer"; // buyer or seller
+  const orderType = searchParams.get("orderType");
 
   const where = {
     ...(role === "buyer" ? { buyerId: session.userId } : { sellerId: session.userId }),
     ...(status ? { status } : {}),
+    ...(orderType ? { orderType } : {}),
   };
 
   try {

@@ -7,6 +7,7 @@
 
 import { ORDER_STATUS } from "./order-state-machine";
 import { calculateCommission } from "./pricing";
+import { changeCredit } from "./credit";
 
 interface SettleContext {
   tx: any; // Prisma transaction client
@@ -75,19 +76,15 @@ export async function onPaymentSettled({ tx, order, userId }: SettleContext) {
     });
   }
 
-  // 任务订单：跳过 PAID 直接进入 in_progress
+  // 任务订单：支付后保持 PAID，等服务者手动"开始执行"
   if (order.orderType === "task") {
-    await tx.order.update({
-      where: { id: order.id },
-      data: { status: ORDER_STATUS.IN_PROGRESS },
-    });
     await tx.message.create({
       data: {
         schoolId: order.schoolId,
         receiverId: order.sellerId,
         type: "notification",
         title: "任务已支付，请开始执行",
-        content: `订单 ${order.orderNo} 已支付，请开始执行任务。`,
+        content: `订单 ${order.orderNo} 已支付，请前往订单页面点击"开始执行"。`,
       },
     });
   }
@@ -165,16 +162,12 @@ export async function onOrderCompleted({ tx, order, userId }: SettleContext) {
     },
   });
 
-  // 双方信用分 +2
+  // 双方信用分 +5（订单完成积分）
   for (const uid of [order.buyerId, order.sellerId]) {
-    const cs = await tx.creditScore.findUnique({ where: { userId: uid } });
-    if (cs) await tx.creditScore.update({ where: { userId: uid }, data: { score: cs.score + 2 } });
-    await tx.auditLog.create({
-      data: {
-        userId: uid, schoolId: order.schoolId,
-        action: "credit_change", targetType: "credit_score", targetId: uid,
-        detail: `订单完成 +2 信用分`,
-      },
+    await changeCredit({
+      userId: uid, schoolId: order.schoolId,
+      delta: 5, reason: `完成订单 ${order.orderNo}`,
+      source: "order", orderId: order.id,
     });
   }
 }
@@ -188,9 +181,12 @@ export async function onOrderCompleted({ tx, order, userId }: SettleContext) {
  * - 已支付退款
  */
 export async function onOrderCancelled({ tx, order, userId }: SettleContext) {
-  // 取消方信用分 -1
-  const cs = await tx.creditScore.findUnique({ where: { userId } });
-  if (cs) await tx.creditScore.update({ where: { userId }, data: { score: Math.max(0, cs.score - 1) } });
+  // 取消方信用分 -5
+  await changeCredit({
+    userId, schoolId: order.schoolId,
+    delta: -5, reason: `取消订单 ${order.orderNo}`,
+    source: "order", orderId: order.id,
+  });
 
   // 已支付退款
   if (order.status === ORDER_STATUS.PAID) {

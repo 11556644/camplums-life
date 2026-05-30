@@ -57,6 +57,7 @@ model User {
   roles         UserRole[]
   products      Product[]      @relation("SellerProducts")
   tasks         Task[]         @relation("PublisherTasks")
+  assigneeTasks Task[]         @relation("AssigneeTasks")
   buyerOrders   Order[]        @relation("BuyerOrders")
   sellerOrders  Order[]        @relation("SellerOrders")
   ratings       Rating[]       @relation("RaterRatings")
@@ -114,23 +115,32 @@ model Product {
 // ==================== 任务/服务 ====================
 
 model Task {
-  id           String   @id @default(cuid())
-  schoolId     String
-  publisherId  String
-  type         String   // errand, delivery, tutoring, skill_exchange, repair, other
-  title        String
-  description  String
-  budget       Float?
-  budgetType   String   @default("fixed") // fixed, negotiable
-  status       String   @default("open") // open, bidding, assigned, in_progress, completed, cancelled
-  location     String?
-  deadline     DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String    @id @default(cuid())
+  schoolId          String
+  publisherId       String
+  assigneeId        String?   // 接单人
+  type              String    // errand, delivery, tutoring, skill_exchange, repair, other
+  title             String
+  description       String
+  budget            Float?
+  budgetType        String    @default("fixed") // fixed, negotiable
+  status            String    @default("open") // open, assigned, in_progress, completed, cancelled, expired
+  location          String?
+  deadline          DateTime? // 用户设定的截止时间
+  acceptedAt        DateTime? // 接单时间
+  executionDeadline DateTime? // 执行截止时间（接单后自动计算）
+  completedProof    String?   // 完成证明（照片URL）
+  supplierDoneAt    DateTime? // 服务方标记完成时间
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   school    School     @relation(fields: [schoolId], references: [id])
   publisher User       @relation("PublisherTasks", fields: [publisherId], references: [id])
+  assignee  User?      @relation("AssigneeTasks", fields: [assigneeId], references: [id])
   orderItems OrderItem[]
+
+  @@index([status])
+  @@index([deadline])
 }
 
 // ==================== 统一订单 ====================
@@ -417,16 +427,40 @@ model Dispute {
 // ==================== 信用分 ====================
 
 model CreditScore {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  schoolId   String
-  score      Int      @default(100)
-  updatedAt  DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  schoolId     String
+  score        Int      @default(600)
+  tier         String   @default("standard") // blacklist, restricted, standard, good, excellent
+  totalOrders  Int      @default(0)   // 累计完成订单数
+  monthlyOrders Int     @default(0)   // 本月获得积分的订单数
+  lastActiveAt DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   school School @relation(fields: [schoolId], references: [id])
+  history CreditScoreHistory[]
 
   @@index([schoolId])
+  @@index([tier])
+}
+
+model CreditScoreHistory {
+  id         String   @id @default(cuid())
+  userId     String
+  schoolId   String
+  delta      Int             // 分数变动（正/负）
+  reason     String          // 变动原因
+  source     String          // 来源：order, rating, dispute, textbook, system
+  orderId    String?         // 关联订单（可选）
+  scoreBefore Int
+  scoreAfter  Int
+  createdAt  DateTime @default(now())
+
+  creditScore CreditScore @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 // ==================== 消息 ====================

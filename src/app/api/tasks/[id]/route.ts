@@ -15,11 +15,21 @@ export async function GET(
       where: { id },
       include: {
         publisher: { select: { id: true, nickname: true, dormitory: true, department: true } },
+        assignee: { select: { id: true, nickname: true, department: true } },
+        orderItems: {
+          include: {
+            order: {
+              select: { id: true, orderNo: true, status: true, totalAmount: true, createdAt: true, paidAt: true, buyerId: true, sellerId: true },
+            },
+          },
+          take: 1,
+        },
       },
     });
     if (!task) return apiError("任务不存在", 404);
 
     const isPublisher = session?.userId === task.publisherId;
+    const isAssignee = session?.userId === task.assigneeId;
     const masked = {
       ...task,
       location: maskLocation(task.location),
@@ -27,6 +37,8 @@ export async function GET(
         ...task.publisher,
         dormitory: isPublisher ? task.publisher.dormitory : maskLocation(task.publisher.dormitory),
       },
+      order: task.orderItems[0]?.order || null,
+      orderItems: undefined, // 不返回原始 orderItems
     };
 
     return apiSuccess(masked);

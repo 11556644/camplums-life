@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { ORDER_STATUS } from "@/lib/order-state-machine";
+import { changeCredit } from "@/lib/credit";
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -105,15 +106,6 @@ export async function POST(req: Request) {
           },
         });
         walletDeducted = true;
-
-        // 逾期扣信用分
-        const cs = await tx.creditScore.findUnique({ where: { userId: session.userId } });
-        if (cs) {
-          await tx.creditScore.update({
-            where: { userId: session.userId },
-            data: { score: Math.max(0, cs.score - 2) },
-          });
-        }
       } else if (wallet) {
         // 余额不足，记录待扣款
         await tx.walletTransaction.create({
@@ -150,6 +142,17 @@ export async function POST(req: Request) {
     return { lateFee, overdueDays, walletDeducted };
   });
 
+  // 逾期扣信用分（在事务外调用，changeCredit 自行管理事务）
+  if (result.walletDeducted) {
+    await changeCredit({
+      userId: session.userId,
+      schoolId: user.schoolId,
+      delta: -10,
+      reason: "逾期还书",
+      source: "textbook",
+    });
+  }
+
   // 发送通知
   if (result.lateFee > 0) {
     if (result.walletDeducted) {
@@ -157,7 +160,7 @@ export async function POST(req: Request) {
         data: {
           schoolId: user.schoolId, receiverId: session.userId,
           type: "notification", title: "逾期费已扣除",
-          content: `您归还的《${copy.textbook.title}》逾期 ${result.overdueDays} 天（宽限期已扣除），已从钱包扣除 ¥${result.lateFee}，信用分 -2。`,
+          content: `您归还的《${copy.textbook.title}》逾期 ${result.overdueDays} 天（宽限期已扣除），已从钱包扣除 ¥${result.lateFee}，信用分 -10。`,
         },
       });
     } else {

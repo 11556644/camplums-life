@@ -24,11 +24,15 @@ export interface JwtPayload {
   roles: string[];
 }
 
+// 简易状态缓存：避免每次 API 请求都查数据库
+const statusCache = new Map<string, { status: string; expireAt: number }>();
+const CACHE_TTL = 30_000; // 30 秒
+
 export async function signToken(payload: JwtPayload): Promise<string> {
   return new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("2h") // 缩短到 2 小时，配合 refresh
+    .setExpirationTime("2h")
     .sign(SECRET);
 }
 
@@ -48,13 +52,21 @@ export async function getSession(): Promise<JwtPayload | null> {
   const payload = await verifyToken(token);
   if (!payload) return null;
 
-  // 实时检查用户状态（封禁即时生效）
+  // 实时检查用户状态（封禁即时生效），但带缓存避免每次查库
   try {
-    const user = await db.user.findUnique({
-      where: { id: payload.userId },
-      select: { status: true },
-    });
-    if (!user || user.status !== "active") return null;
+    const cached = statusCache.get(payload.userId);
+    const now = Date.now();
+    if (cached && now < cached.expireAt) {
+      if (cached.status !== "active") return null;
+    } else {
+      const user = await db.user.findUnique({
+        where: { id: payload.userId },
+        select: { status: true },
+      });
+      if (!user) return null;
+      statusCache.set(payload.userId, { status: user.status, expireAt: now + CACHE_TTL });
+      if (user.status !== "active") return null;
+    }
   } catch {
     // 数据库异常时降级放行，避免完全不可用
   }

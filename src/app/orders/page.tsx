@@ -20,6 +20,13 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   refunded: { label: "已退款", color: "bg-orange-100 text-orange-800" },
 };
 
+const ORDER_TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  product: { label: "商品", color: "bg-gray-100 text-gray-600" },
+  task: { label: "任务", color: "bg-orange-100 text-orange-600" },
+  subscription: { label: "教材", color: "bg-green-100 text-green-600" },
+  storage: { label: "寄存", color: "bg-blue-100 text-blue-600" },
+};
+
 interface Order {
   id: string;
   orderNo: string;
@@ -51,7 +58,9 @@ export default function OrdersPage() {
 
   async function refreshOrders() {
     setLoading(true);
-    const res = await fetch(`/api/orders?role=${role}`);
+    const apiRole = role === "task_seller" ? "seller" : role;
+    const typeFilter = role === "task_seller" ? "&orderType=task" : "";
+    const res = await fetch(`/api/orders?role=${apiRole}${typeFilter}`);
     const data = await res.json();
     if (data.success) setOrders(data.data);
     setLoading(false);
@@ -128,6 +137,16 @@ export default function OrdersPage() {
     if (data.success) { toast.success("已开始执行"); refreshOrders(); } else toast.error(data.error);
   };
 
+  const handleSupplierDone = async (taskId: string, orderId: string) => {
+    const res = await fetch(`/api/tasks/${taskId}/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, supplierDone: true }),
+    });
+    const data = await res.json();
+    if (data.success) { toast.success("已标记完成，等待发布者确认"); refreshOrders(); } else toast.error(data.error);
+  };
+
   const handleTaskComplete = async (taskId: string, orderId: string) => {
     const res = await fetch(`/api/tasks/${taskId}/complete`, {
       method: "POST",
@@ -172,6 +191,12 @@ export default function OrdersPage() {
         >
           我卖的
         </button>
+        <button
+          onClick={() => setRole("task_seller")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${role === "task_seller" ? "bg-orange-500 text-white" : "bg-gray-100"}`}
+        >
+          我接的
+        </button>
       </div>
 
       {loading ? (
@@ -182,12 +207,16 @@ export default function OrdersPage() {
         <div className="space-y-4">
           {orders.map((order) => {
             const statusInfo = STATUS_LABELS[order.status] || { label: order.status, color: "bg-gray-100" };
+            const typeInfo = ORDER_TYPE_LABELS[order.orderType] || { label: order.orderType, color: "bg-gray-100" };
             return (
               <Card key={order.id}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm text-gray-500">订单号：{order.orderNo}</CardTitle>
-                    <Badge className={statusInfo.color}>{statusInfo.label}</Badge>
+                    <div className="flex gap-1">
+                      <Badge className={typeInfo.color} variant="outline">{typeInfo.label}</Badge>
+                      <Badge className={statusInfo.color}>{statusInfo.label}</Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -224,9 +253,12 @@ export default function OrdersPage() {
                       {order.status === "paid" && role === "seller" && order.orderType === "task" && (
                         <Button size="sm" onClick={() => handleStart(order.id)}>开始执行</Button>
                       )}
-                      {/* 商品订单：买家确认收货 */}
-                      {(order.status === "delivered" || order.status === "shipped") && role === "buyer" && order.orderType === "product" && (
-                        <Button size="sm" onClick={() => handleComplete(order.id)}>确认收货</Button>
+                      {/* 任务订单：服务者标记完成 */}
+                      {order.status === "in_progress" && role === "seller" && order.orderType === "task" && (
+                        <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={() => {
+                          const taskId = order.items[0]?.taskId;
+                          if (taskId) handleSupplierDone(taskId, order.id);
+                        }}>标记完成</Button>
                       )}
                       {/* 任务订单：发布者确认完成 */}
                       {order.status === "in_progress" && role === "buyer" && order.orderType === "task" && (
@@ -234,6 +266,10 @@ export default function OrdersPage() {
                           const taskId = order.items[0]?.taskId;
                           if (taskId) handleTaskComplete(taskId, order.id);
                         }}>确认完成</Button>
+                      )}
+                      {/* 商品订单：买家确认收货 */}
+                      {(order.status === "delivered" || order.status === "shipped") && role === "buyer" && order.orderType === "product" && (
+                        <Button size="sm" onClick={() => handleComplete(order.id)}>确认收货</Button>
                       )}
                       {/* 物流（仅商品订单） */}
                       {(order.status === "shipped" || order.status === "delivered") && order.orderType === "product" && (

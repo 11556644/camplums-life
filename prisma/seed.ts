@@ -7,7 +7,7 @@ async function main() {
   console.log("Seeding database...");
 
   // 清空所有表（按依赖顺序，含所有模型）
-  await db.$executeRaw`TRUNCATE TABLE "ForumLike", "ForumFavorite", "ForumComment", "ForumPost", "ForumBoard", "LogisticsNode", "LogisticsRoute", "InventoryTransaction", "InspectionRecord", "TextbookCopy", "Textbook", "CabinetSlotLog", "CabinetSlotOrder", "CabinetSlot", "Cabinet", "Dispute", "Rating", "Message", "WalletTransaction", "Wallet", "EventLog", "AuditLog", "CreditScore", "UserRole", "OrderItem", "Payment", "Order", "SubscriptionOrder", "SubscriptionPlan", "SchoolConfig", "Task", "Product", "ProductFavorite", "User", "School" CASCADE`;
+  await db.$executeRaw`TRUNCATE TABLE "CreditScoreHistory", "ForumLike", "ForumFavorite", "ForumComment", "ForumPost", "ForumBoard", "LogisticsNode", "LogisticsRoute", "InventoryTransaction", "InspectionRecord", "TextbookCopy", "Textbook", "CabinetSlotLog", "CabinetSlotOrder", "CabinetSlot", "Cabinet", "Dispute", "Rating", "Message", "WalletTransaction", "Wallet", "EventLog", "AuditLog", "CreditScore", "UserRole", "OrderItem", "Payment", "Order", "SubscriptionOrder", "SubscriptionPlan", "SchoolConfig", "Task", "Product", "ProductFavorite", "User", "School" CASCADE`;
 
   // ==================== 学校 ====================
   const school = await db.school.create({
@@ -103,9 +103,9 @@ async function main() {
   ];
   await db.userRole.createMany({ data: roles });
 
-  // 信用分
+  // 信用分（起点 600，标准等级）
   for (const user of [admin, seller, buyer, floorLeader, serviceProvider]) {
-    await db.creditScore.create({ data: { userId: user.id, schoolId: school.id, score: 100 } });
+    await db.creditScore.create({ data: { userId: user.id, schoolId: school.id, score: 600, tier: "standard" } });
   }
 
   console.log("Created users: admin, seller, buyer, floorLeader, serviceProvider");
