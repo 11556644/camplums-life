@@ -142,21 +142,26 @@ export async function onOrderCompleted({ tx, order, userId }: SettleContext) {
   }
 
   // 卖家结算（扣除佣金）
-  const sellerWallet = await tx.wallet.findUnique({ where: { userId: order.sellerId } });
-  const comm = calculateCommission(order.totalAmount, order.bizType);
-  if (sellerWallet) {
-    await tx.wallet.update({
-      where: { userId: order.sellerId },
-      data: { balance: sellerWallet.balance + comm.sellerReceives },
-    });
-    await tx.walletTransaction.create({
-      data: {
-        walletId: sellerWallet.id, type: "settlement", amount: comm.sellerReceives,
-        balanceBefore: sellerWallet.balance, balanceAfter: sellerWallet.balance + comm.sellerReceives,
-        orderId: order.id, method: "settlement", status: "success",
-      },
+  let sellerWallet = await tx.wallet.findUnique({ where: { userId: order.sellerId } });
+  if (!sellerWallet) {
+    // 接单者从未充值过，自动创建钱包
+    sellerWallet = await tx.wallet.create({
+      data: { userId: order.sellerId, schoolId: order.schoolId, balance: 0 },
     });
   }
+  const comm = calculateCommission(order.totalAmount, order.bizType);
+  const newBalance = sellerWallet.balance + comm.sellerReceives;
+  await tx.wallet.update({
+    where: { id: sellerWallet.id },
+    data: { balance: newBalance },
+  });
+  await tx.walletTransaction.create({
+    data: {
+      walletId: sellerWallet.id, type: "settlement", amount: comm.sellerReceives,
+      balanceBefore: sellerWallet.balance, balanceAfter: newBalance,
+      orderId: order.id, method: "settlement", status: "success",
+    },
+  });
 
   // 通知卖家（含佣金说明）
   await tx.message.create({
@@ -206,17 +211,21 @@ export async function onOrderCancelled({ tx, order, userId, prevStatus }: Settle
 
   // 已支付退款（用取消前的状态判断，因为 order.status 已被更新为 cancelled）
   if ((prevStatus || order.status) === ORDER_STATUS.PAID) {
-    const wallet = await tx.wallet.findUnique({ where: { userId: order.buyerId } });
-    if (wallet) {
-      await tx.wallet.update({ where: { userId: order.buyerId }, data: { balance: wallet.balance + order.totalAmount } });
-      await tx.walletTransaction.create({
-        data: {
-          walletId: wallet.id, type: "refund", amount: order.totalAmount,
-          balanceBefore: wallet.balance, balanceAfter: wallet.balance + order.totalAmount,
-          orderId: order.id, method: "wallet", status: "success",
-        },
+    let wallet = await tx.wallet.findUnique({ where: { userId: order.buyerId } });
+    if (!wallet) {
+      wallet = await tx.wallet.create({
+        data: { userId: order.buyerId, schoolId: order.schoolId, balance: 0 },
       });
     }
+    const newBalance = wallet.balance + order.totalAmount;
+    await tx.wallet.update({ where: { id: wallet.id }, data: { balance: newBalance } });
+    await tx.walletTransaction.create({
+      data: {
+        walletId: wallet.id, type: "refund", amount: order.totalAmount,
+        balanceBefore: wallet.balance, balanceAfter: newBalance,
+        orderId: order.id, method: "wallet", status: "success",
+      },
+    });
   }
 
   // 释放柜格
