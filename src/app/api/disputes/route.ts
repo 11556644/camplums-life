@@ -54,6 +54,12 @@ export async function POST(req: Request) {
     return apiError("无权投诉此订单", 403);
   }
 
+  // 只有已支付/进行中/已完成/已发货/已送达的订单可投诉
+  const disputableStatuses = ["paid", "in_progress", "completed", "shipped", "delivered"];
+  if (!disputableStatuses.includes(order.status)) {
+    return apiError("该订单状态不允许投诉");
+  }
+
   // 检查是否已有投诉
   const existing = await db.dispute.findFirst({ where: { orderId, initiatorId: session.userId } });
   if (existing) return apiError("您已对此订单发起过投诉");

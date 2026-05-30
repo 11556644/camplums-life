@@ -57,6 +57,7 @@ export async function POST(req: Request) {
 
   // 质检记录
   if (!conditionAfter || !result) return apiError("缺少质检结果");
+  if (copy.status !== "sanitizing") return apiError("该教材不在消毒状态，无法质检");
 
   // 计算赔付金额
   const FEE_MAP: Record<string, number> = {

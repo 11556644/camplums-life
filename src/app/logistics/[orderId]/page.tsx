@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { useAuthStore } from "@/stores/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface LogisticsNode {
   id: string;
@@ -20,27 +23,61 @@ interface LogisticsRoute {
   status: string;
   currentNode: number;
   nodes: LogisticsNode[];
+  buyerId: string;
+  sellerId: string;
 }
 
 export default function LogisticsPage() {
   const params = useParams();
+  const user = useAuthStore((s) => s.user);
   const [route, setRoute] = useState<LogisticsRoute | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchRoute = async () => {
+    const res = await fetch(`/api/logistics/${params.orderId}`);
+    const data = await res.json();
+    if (data.success) setRoute(data.data);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const fetchRoute = async () => {
-      const res = await fetch(`/api/logistics/${params.orderId}`);
-      const data = await res.json();
-      if (data.success) setRoute(data.data);
-      setLoading(false);
-    };
     fetchRoute();
     const timer = setInterval(fetchRoute, 10000);
     return () => clearInterval(timer);
   }, [params.orderId]);
 
+  const handleAdvance = async () => {
+    setActionLoading(true);
+    const res = await fetch(`/api/logistics/${params.orderId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "advance" }),
+    });
+    const data = await res.json();
+    if (data.success) { toast.success(data.data.message); fetchRoute(); } else toast.error(data.error);
+    setActionLoading(false);
+  };
+
+  const handleDeliver = async () => {
+    setActionLoading(true);
+    const res = await fetch(`/api/logistics/${params.orderId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "deliver" }),
+    });
+    const data = await res.json();
+    if (data.success) { toast.success("已标记送达"); fetchRoute(); } else toast.error(data.error);
+    setActionLoading(false);
+  };
+
   if (loading) return <div className="container mx-auto px-4 py-12 text-center text-gray-400">加载中...</div>;
   if (!route) return <div className="container mx-auto px-4 py-12 text-center text-gray-400">暂无物流信息</div>;
+
+  const isSeller = user?.id === route.sellerId;
+  const isBuyer = user?.id === route.buyerId;
+  const isInTransit = route.status === "in_transit";
+  const isLastNode = route.currentNode >= route.nodes.length - 1;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-xl">
@@ -52,7 +89,6 @@ export default function LogisticsPage() {
               {route.status === "in_transit" ? "运输中" : route.status === "delivered" ? "已送达" : "已退回"}
             </Badge>
           </div>
-          <p className="text-sm text-gray-500">订单号：{route.orderId}</p>
         </CardHeader>
         <CardContent>
           <div className="relative pl-6">
@@ -95,6 +131,28 @@ export default function LogisticsPage() {
               );
             })}
           </div>
+
+          {/* 卖家操作区 */}
+          {isSeller && isInTransit && (
+            <div className="mt-4 pt-4 border-t space-y-2">
+              {!isLastNode ? (
+                <Button className="w-full" onClick={handleAdvance} disabled={actionLoading}>
+                  {actionLoading ? "更新中..." : `推进到下一站：${route.nodes[route.currentNode + 1]?.nodeName || ""}`}
+                </Button>
+              ) : (
+                <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleDeliver} disabled={actionLoading}>
+                  {actionLoading ? "更新中..." : "确认送达"}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* 买家提示 */}
+          {isBuyer && isInTransit && (
+            <div className="mt-4 pt-4 border-t">
+              <p className="text-sm text-gray-500 text-center">物流更新中，请耐心等待</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

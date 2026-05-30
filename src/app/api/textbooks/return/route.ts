@@ -142,7 +142,7 @@ export async function POST(req: Request) {
     return { lateFee, overdueDays, walletDeducted };
   });
 
-  // 逾期扣信用分（在事务外调用，changeCredit 自行管理事务）
+  // 逾期扣信用分（在事务内调用，嵌套事务通过 savepoint 保证原子性）
   if (result.walletDeducted) {
     await changeCredit({
       userId: session.userId,
@@ -150,6 +150,7 @@ export async function POST(req: Request) {
       delta: -10,
       reason: "逾期还书",
       source: "textbook",
+      orderId: orderId || undefined,
     });
   }
 

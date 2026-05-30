@@ -35,12 +35,15 @@ export async function onPaymentSettled({ tx, order, userId }: SettleContext) {
     const rentalDays = rentalDaysMatch ? parseInt(rentalDaysMatch[1]) : 120;
     const dueDate = new Date(Date.now() + rentalDays * 24 * 60 * 60 * 1000);
     const orderItems = await tx.orderItem.findMany({ where: { orderId: order.id } });
+    const borrowedTitles: string[] = [];
     for (const item of orderItems) {
       if (item.textbookId) {
         const copies = await tx.textbookCopy.findMany({
           where: { textbookId: item.textbookId, borrowerId: order.buyerId, status: "reserved" },
           take: item.quantity,
         });
+        const textbook = await tx.textbook.findUnique({ where: { id: item.textbookId }, select: { title: true } });
+        if (textbook) borrowedTitles.push(`${textbook.title} x${copies.length}`);
         for (const copy of copies) {
           await tx.textbookCopy.update({
             where: { id: copy.id },
@@ -55,6 +58,17 @@ export async function onPaymentSettled({ tx, order, userId }: SettleContext) {
         }
       }
     }
+
+    // 教材订阅专用通知
+    await tx.message.create({
+      data: {
+        schoolId: order.schoolId,
+        receiverId: order.buyerId,
+        type: "notification",
+        title: "教材借阅已激活",
+        content: `您的教材订阅已生效：${borrowedTitles.join("、")}。租期 ${rentalDays} 天，请在 ${dueDate.toLocaleDateString("zh-CN")} 前归还。`,
+      },
+    });
   }
 
   // 柜格升级 reserved → occupied

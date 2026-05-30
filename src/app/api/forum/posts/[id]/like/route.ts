@@ -26,7 +26,7 @@ export async function POST(
       await db.$transaction(async (tx) => {
         await tx.forumLike.delete({ where: { id: existing.id } });
         await tx.forumPost.update({
-          where: { id },
+          where: { id, likeCount: { gt: 0 } },
           data: { likeCount: { decrement: 1 } },
         });
       });

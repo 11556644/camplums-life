@@ -193,3 +193,36 @@ export async function POST(
     return apiError("评论失败", 500);
   }
 }
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session) return apiError("请先登录", 401);
+
+  const { id } = await params;
+
+  try {
+    const post = await db.forumPost.findUnique({
+      where: { id },
+      select: { id: true, authorId: true, status: true },
+    });
+    if (!post) return apiError("帖子不存在", 404);
+    if (post.status !== "active") return apiError("帖子已删除");
+
+    const isAdmin = await db.userRole.findFirst({ where: { userId: session.userId, role: "admin" } });
+    if (post.authorId !== session.userId && !isAdmin) {
+      return apiError("无权删除此帖子", 403);
+    }
+
+    await db.forumPost.update({
+      where: { id },
+      data: { status: "deleted" },
+    });
+
+    return apiSuccess({ message: "已删除" });
+  } catch {
+    return apiError("删除失败", 500);
+  }
+}
