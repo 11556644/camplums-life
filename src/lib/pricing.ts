@@ -11,60 +11,52 @@
 
 // ==================== 平台抽成 ====================
 
-export const COMMISSION_RATES: Record<string, { rate: number; minFee: number; label: string; reason: string }> = {
-  // 实体商品交易（闲鱼 0.6%，我们 5%，远低于转转 10%）
+export const COMMISSION_RATES: Record<string, { rate: number; label: string; reason: string }> = {
+  // 实体商品交易（闲鱼 0.6%，我们 0.5%）
   product: {
     rate: 0.005,
-    minFee: 0.1,
     label: "商品交易服务费 0.5%",
     reason: "极低费率，为智能柜拉流量，促进闲置流通",
   },
   // 体力跑腿服务（美团抽 15-25%，我们 5%）
   errand: {
     rate: 0.05,
-    minFee: 0.5,
     label: "跑腿服务费 5%",
     reason: "体力服务单价低但频次高，低费率保证服务者积极性",
   },
   // 代取代送（同跑腿）
   delivery: {
     rate: 0.05,
-    minFee: 0.5,
     label: "代取代送服务费 5%",
     reason: "同跑腿，体力服务低费率",
   },
   // 维修服务（58到家抽 10-15%，我们 5%）
   repair: {
     rate: 0.05,
-    minFee: 1,
     label: "维修服务费 5%",
     reason: "维修有技术门槛但单价适中，低费率",
   },
   // 技能辅导（主流在线教育平台 20-30%，我们 8%）
   tutoring: {
     rate: 0.08,
-    minFee: 1,
     label: "辅导服务费 8%",
     reason: "技能类价格弹性大，对抽成不敏感，适中费率",
   },
   // 技能交换（无主流对标，低费率鼓励交换）
   skill_exchange: {
     rate: 0.06,
-    minFee: 0,
     label: "技能交换服务费 6%",
     reason: "技能交换价格不确定，低费率鼓励互助",
   },
   // 书籍借阅（订阅系统内部处理，不额外抽成）
   textbook: {
     rate: 0,
-    minFee: 0,
     label: "书籍借阅无额外服务费",
     reason: "订阅套餐已含利润，不重复抽成",
   },
   // 通用默认
   default: {
     rate: 0.05,
-    minFee: 0.5,
     label: "平台服务费 5%",
     reason: "默认低费率",
   },
@@ -76,7 +68,7 @@ export function getCommission(bizType: string) {
 
 export function calculateCommission(amount: number, bizType: string): { fee: number; sellerReceives: number; rate: number } {
   const config = getCommission(bizType);
-  const fee = Math.max(config.minFee, Math.round(amount * config.rate * 100) / 100);
+  const fee = Math.round(amount * config.rate * 100) / 100;
   return {
     fee,
     sellerReceives: Math.round((amount - fee) * 100) / 100,
