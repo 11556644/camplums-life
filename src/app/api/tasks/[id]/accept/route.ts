@@ -83,20 +83,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return { orderId: order.id, taskTitle: task.title };
   }).catch((err: Error) => {
     if (["任务不存在", "该任务不可接单", "不能接自己发布的任务", "任务金额无效，请联系发布者"].includes(err.message)) {
-      return null;
+      return { error: err.message };
     }
-    throw err;
+    return { error: `系统错误：${err.message}` };
   });
 
-  if (!result) return apiError("接单失败", 400);
+  if (!result || "error" in result) return apiError(result?.error || "接单失败", 400);
 
+  const successResult = result as { orderId: string; taskTitle: string };
   await auditLog({
     userId: session.userId,
     action: "task_accept",
     targetType: "task",
     targetId: id,
-    detail: `接单任务「${result.taskTitle}」`,
+    detail: `接单任务「${successResult.taskTitle}」`,
   });
 
-  return apiSuccess({ message: "接单成功", orderId: result.orderId });
+  return apiSuccess({ message: "接单成功", orderId: successResult.orderId });
 }
