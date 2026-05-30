@@ -157,7 +157,7 @@ export async function PATCH(
 
     // 统一取消副作用（退款、柜格释放、任务回退、商品恢复、信用分、通知）
     if (action === "cancel") {
-      await onOrderCancelled({ tx, order, userId: session.userId });
+      await onOrderCancelled({ tx, order, userId: session.userId, prevStatus: order.status });
     }
 
     return { updatedOrder, buyerId: order.buyerId, sellerId: order.sellerId, orderNo: order.orderNo, prevStatus: order.status };

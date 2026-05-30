@@ -90,15 +90,15 @@ export async function onPaymentSettled({ tx, order, userId }: SettleContext) {
     });
   }
 
-  // 任务订单：支付后保持 PAID，等服务者手动"开始执行"
+  // 任务订单：预付模式，发布即付款，通知发布者任务已发布
   if (order.orderType === "task") {
     await tx.message.create({
       data: {
         schoolId: order.schoolId,
-        receiverId: order.sellerId,
+        receiverId: order.buyerId,
         type: "notification",
-        title: "任务已支付，请开始执行",
-        content: `订单 ${order.orderNo} 已支付，请前往订单页面点击"开始执行"。`,
+        title: "任务已发布并预付",
+        content: `您的任务订单 ${order.orderNo} 已预付 ¥${order.totalAmount}，等待接单中。`,
       },
     });
   }
@@ -191,10 +191,12 @@ export async function onOrderCompleted({ tx, order, userId }: SettleContext) {
  * - 释放柜格
  * - 任务回退为 open
  * - 商品恢复上架
- * - 信用分 -1
+ * - 信用分 -5
  * - 已支付退款
+ *
+ * @param prevStatus 取消前的订单状态（因调用方已先更新了 status）
  */
-export async function onOrderCancelled({ tx, order, userId }: SettleContext) {
+export async function onOrderCancelled({ tx, order, userId, prevStatus }: SettleContext & { prevStatus?: string }) {
   // 取消方信用分 -5
   await changeCredit({
     userId, schoolId: order.schoolId,
@@ -202,8 +204,8 @@ export async function onOrderCancelled({ tx, order, userId }: SettleContext) {
     source: "order", orderId: order.id,
   });
 
-  // 已支付退款
-  if (order.status === ORDER_STATUS.PAID) {
+  // 已支付退款（用取消前的状态判断，因为 order.status 已被更新为 cancelled）
+  if ((prevStatus || order.status) === ORDER_STATUS.PAID) {
     const wallet = await tx.wallet.findUnique({ where: { userId: order.buyerId } });
     if (wallet) {
       await tx.wallet.update({ where: { userId: order.buyerId }, data: { balance: wallet.balance + order.totalAmount } });
@@ -229,9 +231,15 @@ export async function onOrderCancelled({ tx, order, userId }: SettleContext) {
     });
   }
 
-  // 任务回退
-  if (order.orderType === "task" && order.taskId) {
-    await tx.task.update({ where: { id: order.taskId }, data: { status: "open" } });
+  // 任务回退（从 OrderItem 获取 taskId）
+  if (order.orderType === "task") {
+    const taskItem = await tx.orderItem.findFirst({ where: { orderId: order.id, taskId: { not: null } } });
+    if (taskItem?.taskId) {
+      const task = await tx.task.findUnique({ where: { id: taskItem.taskId } });
+      // 无人接单→直接取消，有人接单→回退到 open 重新接单
+      const newStatus = task?.assigneeId ? "open" : "cancelled";
+      await tx.task.update({ where: { id: taskItem.taskId }, data: { status: newStatus } });
+    }
   }
 
   // 商品恢复上架

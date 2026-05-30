@@ -18,6 +18,7 @@ import {
   Send,
   ArrowLeft,
   Eye,
+  Trash2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale/zh-CN";
@@ -131,6 +132,22 @@ export default function PostDetailPage() {
     navigator.clipboard.writeText(url).then(() => {
       toast.success("链接已复制");
     });
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("确定删除此帖子？")) return;
+    try {
+      const res = await fetch(`/api/forum/posts/${postId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("已删除");
+        router.push(`/forum/${boardId}`);
+      } else {
+        toast.error(data.error);
+      }
+    } catch {
+      toast.error("删除失败");
+    }
   };
 
   const handleSubmitComment = async () => {
@@ -468,6 +485,17 @@ export default function PostDetailPage() {
               <Share2 className="w-4 h-4 mr-1" />
               分享
             </Button>
+            {user && (user.id === post.author.id || user.roles?.includes("admin")) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDelete}
+                className="text-red-400 hover:text-red-600"
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                删除
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

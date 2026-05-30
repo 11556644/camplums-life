@@ -7,7 +7,6 @@ import { useAuthStore } from "@/stores/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ChatButton } from "@/components/chat-box";
 
@@ -63,7 +62,6 @@ export default function TaskDetailPage() {
   const user = useAuthStore((s) => s.user);
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [bidPrice, setBidPrice] = useState("");
   const [accepting, setAccepting] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -78,16 +76,10 @@ export default function TaskDetailPage() {
 
   const handleAccept = async () => {
     if (!user) { router.push("/login"); return; }
-    const price = task?.budgetType === "negotiable" ? parseFloat(bidPrice) : undefined;
-    if (task?.budgetType === "negotiable" && (!price || price <= 0)) {
-      toast.error("请输入报价金额");
-      return;
-    }
     setAccepting(true);
     const res = await fetch(`/api/tasks/${params.id}/accept`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(price ? { price } : {}),
     });
     const data = await res.json();
     if (data.success) {
@@ -99,28 +91,17 @@ export default function TaskDetailPage() {
     setAccepting(false);
   };
 
-  const handlePay = async (method: string) => {
+  const handleCancelTask = async () => {
     if (!task?.order) return;
-    const orderId = task.order.id;
-    const amount = task.order.totalAmount;
+    if (!confirm("确定取消此任务？预付金额将全额退还到钱包。")) return;
     setActionLoading(true);
-    if (method === "wallet") {
-      const res = await fetch("/api/wallet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "pay", amount, orderId }),
-      });
-      const data = await res.json();
-      if (data.success) { toast.success("支付成功"); fetchTask(); } else toast.error(data.error);
-    } else {
-      const res = await fetch(`/api/orders/${orderId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "pay", method }),
-      });
-      const data = await res.json();
-      if (data.success) { toast.success("支付成功"); fetchTask(); } else toast.error(data.error);
-    }
+    const res = await fetch(`/api/orders/${task.order.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "cancel" }),
+    });
+    const data = await res.json();
+    if (data.success) { toast.success("任务已取消，预付款已退还"); fetchTask(); } else toast.error(data.error);
     setActionLoading(false);
   };
 
@@ -175,7 +156,6 @@ export default function TaskDetailPage() {
   const os = order ? ORDER_STATUS[orderStatus] || { label: orderStatus, color: "bg-gray-100" } : null;
   const supplierDone = Boolean(task.supplierDoneAt);
   const showOrderInfo = order !== null;
-  const showPayBtn: boolean = orderStatus === "pending_payment" && isPublisher;
   const showStartBtn: boolean = orderStatus === "paid" && isAssignee;
   const showSupplierDoneBtn: boolean = orderStatus === "in_progress" && isAssignee;
   const showConfirmBtn: boolean = orderStatus === "in_progress" && isPublisher;
@@ -240,13 +220,8 @@ export default function TaskDetailPage() {
         {/* 接单（开放状态 + 非发布者） */}
         {String(task.status) === "open" && !isPublisher && user && (
           <Card>
-            <CardContent className="pt-4 space-y-3">
-              {task.budgetType === "negotiable" && (
-                <div>
-                  <label className="text-sm text-gray-500 mb-1 block">您的报价</label>
-                  <Input type="number" placeholder="输入金额" value={bidPrice} onChange={e => setBidPrice(e.target.value)} />
-                </div>
-              )}
+            <CardContent className="pt-4">
+              <p className="text-sm text-gray-600 mb-3">任务已预付 ¥{task.budget}，接单后即可开始执行。</p>
               <Button className="w-full" size="lg" onClick={handleAccept} disabled={accepting}>
                 {accepting ? "接单中..." : "接单"}
               </Button>
@@ -254,15 +229,19 @@ export default function TaskDetailPage() {
           </Card>
         )}
 
-        {/* 发布者：待支付 */}
-        {showPayBtn && (
+        {/* 发布者：取消任务（开放或已接单状态） */}
+        {isPublisher && ["open", "assigned"].includes(String(task.status)) && (
           <Card>
-            <CardContent className="pt-4 space-y-3">
-              <p className="text-sm text-gray-600">任务已被接单，请支付以启动服务。</p>
-              <div className="flex gap-2">
-                <Button className="flex-1" onClick={() => handlePay("wallet")} disabled={actionLoading}>钱包支付</Button>
-                <Button variant="outline" className="flex-1" onClick={() => handlePay("wechat")} disabled={actionLoading}>微信支付</Button>
-              </div>
+            <CardContent className="pt-4 space-y-2">
+              <p className="text-sm text-gray-600">
+                {String(task.status) === "open"
+                  ? "任务已预付，正在等待接单。取消可全额退款。"
+                  : "任务已被接单，取消将退款并释放任务。"}
+              </p>
+              <Button variant="outline" className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                onClick={handleCancelTask} disabled={actionLoading}>
+                取消任务并退款
+              </Button>
             </CardContent>
           </Card>
         )}
