@@ -201,6 +201,19 @@ export const CABINET_PRICING = {
   // 总封顶
   totalMax: 10,
 
+  // 超时费率（¥0.5/小时，封顶 ¥10）
+  overtimeRatePerHour: 0.5,
+  overtimeMax: 10,
+
+  // 交易交收时长选项（买家可选）
+  tradeDurationOptions: [
+    { minutes: 30, label: "30分钟", totalPrice: 0, sellerPays: 0, buyerPays: 0, description: "免费" },
+    { minutes: 120, label: "2小时", totalPrice: 0.2, sellerPays: 0.2, buyerPays: 0, description: "特价" },
+    { minutes: 360, label: "6小时", totalPrice: 1, sellerPays: 0.2, buyerPays: 0.8, description: "半天" },
+    { minutes: 720, label: "12小时", totalPrice: 1.5, sellerPays: 0.2, buyerPays: 1.3, description: "过夜" },
+    { minutes: 1440, label: "24小时", totalPrice: 2, sellerPays: 0.2, buyerPays: 1.8, description: "隔天取" },
+  ],
+
   // 存储时长选项（用户可选预付）
   durationOptions: [
     { minutes: 30, label: "30分钟", price: 0, description: "免费" },
@@ -242,4 +255,26 @@ export function calculateCabinetFee(minutes: number, prepaidMinutes: number = 0,
   }
 
   return CABINET_PRICING.totalMax;
+}
+
+/**
+ * 计算交易交收费用分摊
+ * 卖家固定付 ¥0.2（2h 特价），超出部分买家付
+ * 30 分钟免费档双方都不付
+ */
+export function calculateTradeDeliveryFee(durationMinutes: number): { sellerPays: number; buyerPays: number } {
+  const opt = CABINET_PRICING.tradeDurationOptions.find(o => o.minutes === durationMinutes);
+  if (opt) return { sellerPays: opt.sellerPays, buyerPays: opt.buyerPays };
+  // 默认按 2 小时
+  return { sellerPays: 0.2, buyerPays: 0 };
+}
+
+/**
+ * 计算超时费用
+ * 超出预付时长后按 ¥0.5/小时 计费，封顶 ¥10
+ */
+export function calculateOvertimeFee(overtimeMinutes: number): number {
+  if (overtimeMinutes <= 0) return 0;
+  const hours = Math.ceil(overtimeMinutes / 60);
+  return Math.min(hours * CABINET_PRICING.overtimeRatePerHour, CABINET_PRICING.overtimeMax);
 }

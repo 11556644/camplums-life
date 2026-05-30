@@ -2,6 +2,8 @@ export const dynamic = "force-dynamic";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { broadcastEvent } from "@/lib/realtime";
+import { buildSearchFilter, sortByRelevance } from "@/lib/search";
 import { z } from "zod";
 
 const createPostSchema = z.object({
@@ -27,10 +29,11 @@ export async function GET(req: Request) {
       ...(session?.schoolId ? { schoolId: session.schoolId } : {}),
     };
     if (q) {
-      where.OR = [
-        { title: { contains: q } },
-        { content: { contains: q } },
-      ];
+      const searchFilter = buildSearchFilter(q, [
+        { field: "title" },
+        { field: "content" },
+      ]);
+      if (searchFilter) Object.assign(where, searchFilter);
     }
 
     const [posts, total] = await Promise.all([
@@ -112,6 +115,14 @@ export async function POST(req: Request) {
       });
 
       return newPost;
+    });
+
+    broadcastEvent({
+      type: "forum",
+      action: "new_post",
+      targetId: post.id,
+      userId: session.userId,
+      data: { title: post.title, boardId: post.boardId },
     });
 
     return apiSuccess({

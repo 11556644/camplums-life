@@ -123,7 +123,7 @@ export async function POST(req: Request) {
     });
 
     if (result === null) return apiError("余额不足");
-    await domainEvent({ eventType: "wallet.paid", aggregateType: "wallet", aggregateId: session.userId, payload: { amount, orderId } });
+    await domainEvent({ userId: session.userId, eventType: "wallet.paid", aggregateType: "wallet", aggregateId: session.userId, payload: { amount, orderId } });
     return apiSuccess({ balance: result });
   }
 

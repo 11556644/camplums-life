@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { canTransition, ORDER_STATUS } from "@/lib/order-state-machine";
+import { broadcastEvent } from "@/lib/realtime";
 
 // 取件
 export async function POST(req: Request) {
@@ -103,11 +104,14 @@ export async function POST(req: Request) {
   });
 
   await domainEvent({
+    userId: session.userId,
     eventType: reject ? "cabinet.rejected" : "cabinet.retrieved",
     aggregateType: "cabinet",
     aggregateId: binding.slotId,
     payload: { pickupCode, reject: !!reject },
   });
+
+  broadcastEvent({ type: "cabinet", action: "retrieved", targetId: binding.slotId, userId: session.userId });
 
   return apiSuccess({ message: reject ? "已拒收" : "取件成功" });
 }

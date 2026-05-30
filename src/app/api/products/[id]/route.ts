@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { maskLocation } from "@/lib/privacy";
+import { broadcastEvent } from "@/lib/realtime";
 
 export async function GET(
   req: Request,
@@ -60,6 +61,7 @@ export async function PATCH(
     if (product.status !== "active") return apiError("只有上架中的商品可以下架");
     await db.product.update({ where: { id }, data: { status: "delisted" } });
     await auditLog({ userId: session.userId, action: "product_delist", targetType: "product", targetId: id, detail: `下架：${product.title}` });
+    broadcastEvent({ type: "product", action: "updated", targetId: id, userId: session.userId });
     return apiSuccess({ message: "已下架" });
   }
 
@@ -67,6 +69,7 @@ export async function PATCH(
     if (product.status !== "delisted") return apiError("只有已下架的商品可以重新上架");
     await db.product.update({ where: { id }, data: { status: "active" } });
     await auditLog({ userId: session.userId, action: "product_relist", targetType: "product", targetId: id, detail: `重新上架：${product.title}` });
+    broadcastEvent({ type: "product", action: "updated", targetId: id, userId: session.userId });
     return apiSuccess({ message: "已重新上架" });
   }
 

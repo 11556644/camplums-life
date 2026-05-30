@@ -1,24 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending_payment: { label: "待支付", color: "bg-yellow-100 text-yellow-800" },
-  paid: { label: "已支付", color: "bg-blue-100 text-blue-800" },
-  shipped: { label: "已发货", color: "bg-purple-100 text-purple-800" },
-  delivered: { label: "已送达", color: "bg-indigo-100 text-indigo-800" },
-  in_progress: { label: "进行中", color: "bg-blue-100 text-blue-800" },
-  completed: { label: "已完成", color: "bg-green-100 text-green-800" },
-  cancelled: { label: "已取消", color: "bg-gray-100 text-gray-800" },
-  disputed: { label: "纠纷中", color: "bg-red-100 text-red-800" },
-  refunded: { label: "已退款", color: "bg-orange-100 text-orange-800" },
-};
+import { ORDER_STATUS_LABELS } from "@/lib/constants";
+import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 const ORDER_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   product: { label: "商品", color: "bg-gray-100 text-gray-600" },
@@ -56,25 +46,26 @@ export default function OrdersPage() {
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
   const [payMethod, setPayMethod] = useState<"wallet" | "wechat" | "alipay">("wallet");
 
-  async function refreshOrders() {
-    setLoading(true);
+  const refreshOrders = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const apiRole = role === "task_seller" ? "seller" : role;
     const typeFilter = role === "task_seller" ? "&orderType=task" : "";
     const res = await fetch(`/api/orders?role=${apiRole}${typeFilter}`);
     const data = await res.json();
     if (data.success) setOrders(data.data);
-    setLoading(false);
-  }
+    if (!silent) setLoading(false);
+  }, [role]);
 
   useEffect(() => {
-    if (!user) {
-      router.push("/login");
-      return;
-    }
+    if (!user) { router.push("/login"); return; }
     refreshOrders();
-    const timer = setInterval(refreshOrders, 10000);
-    return () => clearInterval(timer);
-  }, [role, user, router]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshOrders, user, router]);
+
+  // SSE：订单变更时静默刷新
+  const handleRealtime = useCallback((event: RealtimeEvent) => {
+    if (event.type === "order") refreshOrders(true);
+  }, [refreshOrders]);
+  useRealtime(handleRealtime, [role]);
 
   const handlePay = async (orderId: string, method: string) => {
     if (method === "wallet") {
@@ -227,7 +218,7 @@ export default function OrdersPage() {
       ) : (
         <div className="space-y-4">
           {orders.map((order) => {
-            const statusInfo = STATUS_LABELS[order.status] || { label: order.status, color: "bg-gray-100" };
+            const statusInfo = ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-gray-100" };
             const typeInfo = ORDER_TYPE_LABELS[order.orderType] || { label: order.orderType, color: "bg-gray-100" };
             return (
               <Card key={order.id}>
@@ -268,7 +259,9 @@ export default function OrdersPage() {
                       )}
                       {/* 商品订单：卖家发货 */}
                       {order.status === "paid" && role === "seller" && order.orderType === "product" && (
-                        <Button size="sm" onClick={() => handleShip(order.id)}>发货</Button>
+                        <Button size="sm" onClick={() => handleShip(order.id)}>
+                          {(order as unknown as Record<string, unknown>).deliveryMethod === "cabinet" ? "存入智能柜" : "发货"}
+                        </Button>
                       )}
                       {/* 商品订单：卖家确认送达 */}
                       {order.status === "shipped" && role === "seller" && order.orderType === "product" && (

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { broadcastEvent } from "@/lib/realtime";
 
 export const dynamic = "force-dynamic";
 
@@ -115,11 +116,14 @@ export async function POST(req: Request) {
   });
 
   await domainEvent({
+    userId: session.userId,
     eventType: "cabinet.deposited",
     aggregateType: "cabinet",
     aggregateId: slotId,
     payload: { pickupCode, depositType },
   });
+
+  broadcastEvent({ type: "cabinet", action: "deposited", targetId: slotId, userId: session.userId });
 
   return apiSuccess({ ...result, pickupCode });
 }

@@ -4,6 +4,7 @@ import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { canTransition, ORDER_STATUS } from "@/lib/order-state-machine";
 import { onOrderCompleted } from "@/lib/settlement";
+import { broadcastEvent } from "@/lib/realtime";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -55,6 +56,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       detail: `服务方标记「${task.title}」完成`,
     });
 
+    broadcastEvent({ type: "task", action: "updated", targetId: id, userId: session.userId });
     return apiSuccess({ message: "已标记服务完成，等待发布者确认" });
   }
 
@@ -92,6 +94,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     targetId: id,
     detail: `确认任务「${task.title}」完成`,
   });
+
+  broadcastEvent({ type: "task", action: "completed", targetId: id, userId: session.userId });
 
   return apiSuccess({ message: "任务已完成" });
 }

@@ -10,6 +10,14 @@ import { useAuthStore } from "@/stores/auth";
 import { toast } from "sonner";
 import { ChatButton } from "@/components/chat-box";
 
+const TRADE_DURATION_OPTIONS = [
+  { minutes: 30, label: "30分钟", sellerPays: 0, buyerPays: 0, description: "免费" },
+  { minutes: 120, label: "2小时", sellerPays: 0.2, buyerPays: 0, description: "特价 ¥0.2" },
+  { minutes: 360, label: "6小时", sellerPays: 0.2, buyerPays: 0.8, description: "共 ¥1" },
+  { minutes: 720, label: "12小时", sellerPays: 0.2, buyerPays: 1.3, description: "共 ¥1.5" },
+  { minutes: 1440, label: "24小时", sellerPays: 0.2, buyerPays: 1.8, description: "共 ¥2" },
+];
+
 interface Product {
   id: string;
   title: string;
@@ -19,6 +27,8 @@ interface Product {
   status: string;
   location: string | null;
   images: string | null;
+  cabinetDelivery: boolean;
+  faceToFaceDelivery: boolean;
   seller: { id: string; nickname: string; dormitory: string | null; department: string | null; createdAt: string };
   createdAt: string;
 }
@@ -38,11 +48,23 @@ export default function ProductDetailPage() {
   const [activePhoto, setActivePhoto] = useState(0);
   const [favorited, setFavorited] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [deliveryMethod, setDeliveryMethod] = useState<string>("");
+  const [cabinetSlotId, setCabinetSlotId] = useState("");
+  const [cabinetDuration, setCabinetDuration] = useState(120); // 默认 2 小时
+  const [cabinets, setCabinets] = useState<Array<{ id: string; name: string; location: string; slots: Array<{ id: string; slotNumber: number; status: string }> }>>([]);
 
   useEffect(() => {
     fetch(`/api/products/${params.id}`)
       .then((r) => r.json())
-      .then((d) => { if (d.success) setProduct(d.data); setLoading(false); });
+      .then((d) => {
+        if (d.success) {
+          setProduct(d.data);
+          // 默认选中第一个可用交收方式
+          if (d.data.faceToFaceDelivery) setDeliveryMethod("face_to_face");
+          else if (d.data.cabinetDelivery) setDeliveryMethod("cabinet");
+        }
+        setLoading(false);
+      });
     if (user) {
       fetch(`/api/products/favorites`)
         .then((r) => r.json())
@@ -50,14 +72,27 @@ export default function ProductDetailPage() {
     }
   }, [params.id, user]);
 
+  // 加载柜格（仅在选择智能柜时加载）
+  useEffect(() => {
+    if (deliveryMethod === "cabinet") {
+      fetch("/api/cabinets").then(r => r.json()).then(d => { if (d.success) setCabinets(d.data); });
+    }
+  }, [deliveryMethod]);
+
   const handleOrder = async () => {
     if (!user) { router.push("/login"); return; }
+    if (!deliveryMethod) { toast.error("请选择交收方式"); return; }
+    if (deliveryMethod === "cabinet" && !cabinetSlotId) { toast.error("请选择柜格"); return; }
     setOrdering(true);
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: params.id }),
+        body: JSON.stringify({
+          productId: params.id,
+          deliveryMethod,
+          ...(deliveryMethod === "cabinet" ? { cabinetSlotId, cabinetDuration } : {}),
+        }),
       });
       const data = await res.json();
       if (data.success) {
@@ -167,9 +202,86 @@ export default function ProductDetailPage() {
             </Button>
           )}
 
+          {/* 交收方式展示 */}
+          <div className="border-t pt-3 text-sm text-gray-500">
+            <p className="font-medium text-gray-700 mb-1">支持交收方式</p>
+            <div className="flex gap-2">
+              {product.cabinetDelivery && <Badge className="bg-blue-100 text-blue-800">📦 智能柜</Badge>}
+              {product.faceToFaceDelivery && <Badge className="bg-green-100 text-green-800">🤝 面对面</Badge>}
+            </div>
+          </div>
+
           {/* 买家操作 */}
           {product.status === "active" && !isSeller && (
-            <div className="space-y-2">
+            <div className="space-y-3">
+              {/* 交收方式选择 */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">选择交收方式</p>
+                <div className="flex gap-2">
+                  {product.faceToFaceDelivery && (
+                    <button onClick={() => setDeliveryMethod("face_to_face")}
+                      className={`flex-1 px-3 py-2 rounded-lg border text-sm ${deliveryMethod === "face_to_face" ? "border-green-500 bg-green-50 text-green-700" : "border-gray-200 text-gray-600"}`}>
+                      🤝 面对面交易
+                    </button>
+                  )}
+                  {product.cabinetDelivery && (
+                    <button onClick={() => setDeliveryMethod("cabinet")}
+                      className={`flex-1 px-3 py-2 rounded-lg border text-sm ${deliveryMethod === "cabinet" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600"}`}>
+                      📦 智能柜自取
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 柜格选择（仅智能柜模式） */}
+              {deliveryMethod === "cabinet" && (() => {
+                const emptySlots = cabinets.flatMap((c) =>
+                  c.slots.filter((s) => s.status === "empty").map((s) => ({ ...s, cabinetName: c.name, cabinetLocation: c.location }))
+                );
+                const selectedOpt = TRADE_DURATION_OPTIONS.find(o => o.minutes === cabinetDuration);
+                return (
+                  <div className="space-y-2 bg-blue-50 rounded-lg p-3">
+                    <p className="text-sm font-medium text-blue-800">📦 智能柜设置</p>
+
+                    {/* 时长选择 */}
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-600">寄存时长</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {TRADE_DURATION_OPTIONS.map((opt) => (
+                          <button key={opt.minutes} onClick={() => setCabinetDuration(opt.minutes)}
+                            className={`px-2.5 py-1 rounded text-xs border ${cabinetDuration === opt.minutes ? "border-blue-500 bg-blue-100 text-blue-700 font-medium" : "border-gray-200 text-gray-600"}`}>
+                            {opt.label}
+                            {opt.buyerPays > 0 && <span className="ml-1 text-orange-500">+¥{opt.buyerPays}</span>}
+                            {opt.sellerPays === 0 && opt.buyerPays === 0 && <span className="ml-1 text-green-500">免费</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 费用说明 */}
+                    <div className="text-xs text-gray-500 space-y-0.5">
+                      {selectedOpt && selectedOpt.sellerPays > 0 && <p>卖家承担：¥{selectedOpt.sellerPays}</p>}
+                      {selectedOpt && selectedOpt.buyerPays > 0 && <p className="text-orange-600">您需补差价：¥{selectedOpt.buyerPays}（随订单支付）</p>}
+                      {selectedOpt && selectedOpt.sellerPays === 0 && selectedOpt.buyerPays === 0 && <p className="text-green-600">免费寄存，无需额外费用</p>}
+                      <p className="text-gray-400">超时按 ¥0.5/小时 计费，封顶 ¥10</p>
+                    </div>
+
+                    {/* 柜格选择 */}
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-600">选择柜格</p>
+                      <select value={cabinetSlotId} onChange={(e) => setCabinetSlotId(e.target.value)}
+                        className="w-full border rounded-md px-3 py-2 text-sm bg-white">
+                        <option value="">请选择柜格</option>
+                        {emptySlots.map((s) => (
+                          <option key={s.id} value={s.id}>{s.cabinetName} #{s.slotNumber}（{s.cabinetLocation}）</option>
+                        ))}
+                      </select>
+                      {emptySlots.length === 0 && <p className="text-xs text-orange-500">暂无可用柜格</p>}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="flex gap-2">
                 <Button className="flex-1" size="lg" onClick={handleOrder} disabled={ordering}>
                   {ordering ? "下单中..." : "立即购买"}

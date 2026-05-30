@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale/zh-CN";
+import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 interface Board {
   id: string;
@@ -54,8 +55,8 @@ export default function BoardPage() {
   const [searchInput, setSearchInput] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const fetchPosts = useCallback(async () => {
-    setLoading(true);
+  const fetchPosts = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams();
       params.set("boardId", boardId);
@@ -81,13 +82,19 @@ export default function BoardPage() {
     } catch {
       // silent
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [boardId, page, limit, searchQuery]);
 
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts]);
+
+  // SSE：新帖子/评论时静默刷新
+  const handleRealtime = useCallback((event: RealtimeEvent) => {
+    if (event.type === "forum") fetchPosts(true);
+  }, [fetchPosts]);
+  useRealtime(handleRealtime, [fetchPosts]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

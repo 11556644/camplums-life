@@ -103,6 +103,8 @@ model Product {
   images      String?  // JSON array of image URLs
   status      String   @default("active") // active, sold, removed, under_review
   location    String?  // 模糊位置（宿舍楼）
+  cabinetDelivery    Boolean @default(false)    // 卖家支持智能柜交收
+  faceToFaceDelivery Boolean @default(true)     // 卖家支持面对面交易
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -162,6 +164,7 @@ model Order {
   totalAmount   Float
   deposit       Float?
   note          String?
+  deliveryMethod String?  // cabinet（智能柜交收）, face_to_face（面对面交易）
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   paidAt        DateTime?
@@ -508,14 +511,14 @@ model AuditLog {
 
 model EventLog {
   id            String   @id @default(cuid())
-  schoolId      String
+  schoolId      String?
   eventType     String   // order.created, order.paid, cabinet.deposited, etc.
   aggregateType String   // order, cabinet, textbook, user
   aggregateId   String
   payload       String?  // JSON
   createdAt     DateTime @default(now())
 
-  school School @relation(fields: [schoolId], references: [id])
+  school School? @relation(fields: [schoolId], references: [id])
 
   @@index([aggregateType, aggregateId])
   @@index([eventType])

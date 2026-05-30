@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth";
@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ChatBox } from "@/components/chat-box";
+import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 interface Conversation {
   otherUserId: string;
@@ -31,19 +32,23 @@ export default function ChatsPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
 
-  useEffect(() => {
-    if (!user) { router.push("/login"); return; }
-    fetchConversations();
-    const timer = setInterval(fetchConversations, 5000);
-    return () => clearInterval(timer);
-  }, [user, router]);
-
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     const res = await fetch("/api/chat/conversations");
     const data = await res.json();
     if (data.success) setConversations(data.data);
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!user) { router.push("/login"); return; }
+    fetchConversations();
+  }, [user, router, fetchConversations]);
+
+  // SSE：新消息时静默刷新会话列表
+  const handleRealtime = useCallback((event: RealtimeEvent) => {
+    if (event.type === "message") fetchConversations();
+  }, [fetchConversations]);
+  useRealtime(handleRealtime, []);
 
   const openChat = async (conv: Conversation) => {
     setActiveChat(conv);
@@ -56,6 +61,8 @@ export default function ChatsPage() {
       setConversations(prev =>
         prev.map(c => c.otherUserId === conv.otherUserId ? { ...c, unread: 0 } : c)
       );
+      // 通知 Navbar 刷新未读数
+      window.dispatchEvent(new Event("unread-updated"));
     }
   };
 

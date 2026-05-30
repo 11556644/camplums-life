@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { maskLocation } from "@/lib/privacy";
+import { buildSearchFilter, sortByRelevance } from "@/lib/search";
 
 // 获取所有任务
 export async function GET(req: Request) {
@@ -19,10 +20,11 @@ export async function GET(req: Request) {
     ...(session?.schoolId ? { schoolId: session.schoolId } : {}),
   };
   if (q) {
-    where.OR = [
-      { title: { contains: q } },
-      { description: { contains: q } },
-    ];
+    const searchFilter = buildSearchFilter(q, [
+      { field: "title" },
+      { field: "description" },
+    ]);
+    if (searchFilter) Object.assign(where, searchFilter);
   }
 
   try {
@@ -45,7 +47,9 @@ export async function GET(req: Request) {
       publisher: { ...t.publisher, dormitory: maskLocation(t.publisher.dormitory) },
     }));
 
-    return apiSuccess({ tasks: masked, total, page, limit });
+    const sorted = q ? sortByRelevance(masked, q, "title", "description") : masked;
+
+    return apiSuccess({ tasks: sorted, total, page, limit });
   } catch {
     return apiError("获取任务列表失败", 500);
   }

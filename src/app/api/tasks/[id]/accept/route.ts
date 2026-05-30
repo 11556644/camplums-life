@@ -4,6 +4,7 @@ import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { getCreditPermissions, TASK_EXECUTION_LIMITS } from "@/lib/credit";
 import { generateOrderNo, ORDER_STATUS } from "@/lib/order-state-machine";
+import { broadcastEvent, publishEvent } from "@/lib/realtime";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -99,6 +100,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     targetType: "task",
     targetId: id,
     detail: `接单任务「${successResult.taskTitle}」`,
+  });
+
+  // 通知任务发布者
+  publishEvent({
+    type: "task",
+    action: "accepted",
+    targetId: id,
+    userId: session.userId,
+  }, [/* publisher will get notified via message */]);
+
+  // 广播任务状态变更（列表页需要刷新）
+  broadcastEvent({
+    type: "task",
+    action: "updated",
+    targetId: id,
+    userId: session.userId,
   });
 
   return apiSuccess({ message: "接单成功", orderId: successResult.orderId });

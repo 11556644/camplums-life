@@ -4,6 +4,7 @@ import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { getCreditPermissions } from "@/lib/credit";
 import { generateOrderNo, ORDER_STATUS } from "@/lib/order-state-machine";
+import { broadcastEvent } from "@/lib/realtime";
 import { z } from "zod";
 
 const schema = z.object({
@@ -117,6 +118,14 @@ export async function POST(req: Request) {
     targetType: "task",
     targetId: result.task.id,
     detail: `发布任务「${result.task.title}」，预付 ¥${budget}，订单 ${result.orderNo}`,
+  });
+
+  broadcastEvent({
+    type: "task",
+    action: "created",
+    targetId: result.task.id,
+    userId: session.userId,
+    data: { title: result.task.title, budget },
   });
 
   return apiSuccess({ task: result.task, prepaid: budget, balance: result.newBalance });

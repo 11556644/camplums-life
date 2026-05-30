@@ -29,6 +29,8 @@ export default function PublishProductPage() {
     price: "",
     category: "other",
     location: "",
+    cabinetDelivery: false,
+    faceToFaceDelivery: true,
   });
   const [photos, setPhotos] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -38,6 +40,7 @@ export default function PublishProductPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) { router.push("/login"); return; }
+    if (!form.cabinetDelivery && !form.faceToFaceDelivery) { toast.error("请至少选择一种交收方式"); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/products/publish", {
@@ -95,7 +98,27 @@ export default function PublishProductPage() {
               <Label>位置</Label>
               <Input value={form.location} onChange={(e) => updateForm("location", e.target.value)} placeholder="如：1号楼" />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>{loading ? "发布中..." : "发布"}</Button>
+            <div className="space-y-2">
+              <Label>交收方式 *（至少选一种）</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.cabinetDelivery}
+                    onChange={(e) => setForm(prev => ({ ...prev, cabinetDelivery: e.target.checked }))}
+                    className="w-4 h-4" />
+                  <span className="text-sm">📦 智能柜交收</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.faceToFaceDelivery}
+                    onChange={(e) => setForm(prev => ({ ...prev, faceToFaceDelivery: e.target.checked }))}
+                    className="w-4 h-4" />
+                  <span className="text-sm">🤝 面对面交易</span>
+                </label>
+              </div>
+              {!form.cabinetDelivery && !form.faceToFaceDelivery && (
+                <p className="text-xs text-red-500">请至少选择一种交收方式</p>
+              )}
+            </div>
+            <Button type="submit" className="w-full" disabled={loading || (!form.cabinetDelivery && !form.faceToFaceDelivery)}>{loading ? "发布中..." : "发布"}</Button>
           </form>
         </CardContent>
       </Card>

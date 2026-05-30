@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth";
@@ -11,18 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { OrderChat } from "@/components/order-chat";
-
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending_payment: { label: "待支付", color: "bg-yellow-100 text-yellow-800" },
-  paid: { label: "已支付", color: "bg-blue-100 text-blue-800" },
-  shipped: { label: "已发货", color: "bg-purple-100 text-purple-800" },
-  delivered: { label: "已送达", color: "bg-indigo-100 text-indigo-800" },
-  in_progress: { label: "进行中", color: "bg-blue-100 text-blue-800" },
-  completed: { label: "已完成", color: "bg-green-100 text-green-800" },
-  cancelled: { label: "已取消", color: "bg-gray-100 text-gray-800" },
-  disputed: { label: "纠纷中", color: "bg-red-100 text-red-800" },
-  refunded: { label: "已退款", color: "bg-orange-100 text-orange-800" },
-};
+import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
+import { ORDER_STATUS_LABELS } from "@/lib/constants";
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -55,16 +45,20 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     if (!user) { router.push("/login"); return; }
-    const fetchOrder = async () => {
-      const res = await fetch(`/api/orders/${params.id}`);
-      const data = await res.json();
-      if (data.success) setOrder(data.data);
-      setLoading(false);
-    };
-    fetchOrder();
-    const timer = setInterval(fetchOrder, 10000);
-    return () => clearInterval(timer);
+    setLoading(true);
+    fetch(`/api/orders/${params.id}`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setOrder(d.data); setLoading(false); });
   }, [params.id, user, router]);
+
+  // SSE 实时监听订单状态变更
+  const handleRealtime = useCallback((event: RealtimeEvent) => {
+    if (event.type === "order" && event.targetId === params.id) {
+      refreshOrder();
+    }
+  }, [params.id]);
+
+  useRealtime(handleRealtime, [params.id]);
 
   const handleRate = async () => {
     const res = await fetch(`/api/orders/${params.id}/rate`, {
@@ -110,7 +104,7 @@ export default function OrderDetailPage() {
   if (!user || loading) return <div className="container mx-auto px-4 py-12 text-center text-gray-400">加载中...</div>;
   if (!order) return <div className="container mx-auto px-4 py-12 text-center text-gray-400">订单不存在</div>;
 
-  const statusInfo = STATUS_LABELS[(order.status as string)] || { label: order.status as string, color: "bg-gray-100" };
+  const statusInfo = ORDER_STATUS_LABELS[(order.status as string)] || { label: order.status as string, color: "bg-gray-100" };
   const canDispute = ["paid", "shipped", "delivered", "completed", "disputed"].includes(order.status as string);
   const isBuyer = user.id === String(order.buyerId);
   const isSeller = user.id === String(order.sellerId);
@@ -129,6 +123,11 @@ export default function OrderDetailPage() {
         <CardContent className="space-y-4">
           <div className="text-sm text-gray-500">订单号：{order.orderNo as string}</div>
           <div className="text-sm text-gray-500">类型：{order.orderType as string} / {order.bizType as string}</div>
+          {(order.deliveryMethod as string) && (
+            <div className="text-sm text-gray-500">
+              交收方式：{(order.deliveryMethod as string) === "cabinet" ? "📦 智能柜自取" : "🤝 面对面交易"}
+            </div>
+          )}
           <div className="text-2xl font-bold text-red-600">¥{String(order.totalAmount)}</div>
           {order.paidAt ? <div className="text-sm text-gray-500">支付时间：{new Date(order.paidAt as string).toLocaleString("zh-CN")}</div> : null}
           {order.completedAt ? <div className="text-sm text-gray-500">完成时间：{new Date(order.completedAt as string).toLocaleString("zh-CN")}</div> : null}
@@ -187,7 +186,9 @@ export default function OrderDetailPage() {
 
           {/* 卖家：发货（商品订单已支付） */}
           {orderType === "product" && orderStatus === "paid" && isSeller && (
-            <Button className="w-full" onClick={() => handleAction("ship")}>发货</Button>
+            <Button className="w-full" onClick={() => handleAction("ship")}>
+              {order.deliveryMethod === "cabinet" ? "📦 存入智能柜" : "🚚 发货"}
+            </Button>
           )}
 
           {/* 卖家：确认送达（商品订单已发货） */}

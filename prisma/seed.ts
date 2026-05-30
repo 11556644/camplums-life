@@ -6,7 +6,14 @@ const db = new PrismaClient();
 async function main() {
   console.log("Seeding database...");
 
-  // 清空所有表（按依赖顺序，含所有模型）
+  // 幂等检查：如果学校已存在，跳过 seed（防止部署时重复清空数据）
+  const existingSchool = await db.school.findFirst();
+  if (existingSchool) {
+    console.log(`Database already seeded (school: ${existingSchool.name}). Skipping.`);
+    return;
+  }
+
+  // 仅在全新数据库时清空（防御性）
   await db.$executeRaw`TRUNCATE TABLE "CreditScoreHistory", "ForumLike", "ForumFavorite", "ForumComment", "ForumPost", "ForumBoard", "LogisticsNode", "LogisticsRoute", "InventoryTransaction", "InspectionRecord", "TextbookCopy", "Textbook", "CabinetSlotLog", "CabinetSlotOrder", "CabinetSlot", "Cabinet", "Dispute", "Rating", "Message", "WalletTransaction", "Wallet", "EventLog", "AuditLog", "CreditScore", "UserRole", "OrderItem", "Payment", "Order", "SubscriptionOrder", "SubscriptionPlan", "SchoolConfig", "Task", "Product", "ProductFavorite", "User", "School" CASCADE`;
 
   // ==================== 学校 ====================
@@ -247,9 +254,9 @@ async function main() {
   // ==================== 示例商品 ====================
   await db.product.createMany({
     data: [
-      { schoolId: school.id, sellerId: seller.id, category: "electronics", title: "iPad Air 5 64G WiFi版", description: "自用一年，功能完好，无磕碰，配原装充电器和保护壳", price: 2800, images: JSON.stringify(["/images/seeds/ipad-air.png"]), status: "active", location: "1号楼" },
-      { schoolId: school.id, sellerId: seller.id, category: "books", title: "考研英语真题全套", description: "2020-2025年真题详解，几乎全新", price: 45, images: JSON.stringify(["/images/seeds/kaoyan-english.png"]), status: "active", location: "1号楼" },
-      { schoolId: school.id, sellerId: floorLeader.id, category: "furniture", title: "宿舍台灯 护眼款", description: "LED护眼台灯，三档调光，毕业清仓", price: 35, images: JSON.stringify(["/images/seeds/desk-lamp.png"]), status: "active", location: "1号楼" },
+      { schoolId: school.id, sellerId: seller.id, category: "electronics", title: "iPad Air 5 64G WiFi版", description: "自用一年，功能完好，无磕碰，配原装充电器和保护壳", price: 2800, images: JSON.stringify(["/images/seeds/ipad-air.png"]), status: "active", location: "1号楼", cabinetDelivery: true, faceToFaceDelivery: true },
+      { schoolId: school.id, sellerId: seller.id, category: "books", title: "考研英语真题全套", description: "2020-2025年真题详解，几乎全新", price: 45, images: JSON.stringify(["/images/seeds/kaoyan-english.png"]), status: "active", location: "1号楼", cabinetDelivery: true, faceToFaceDelivery: true },
+      { schoolId: school.id, sellerId: floorLeader.id, category: "furniture", title: "宿舍台灯 护眼款", description: "LED护眼台灯，三档调光，毕业清仓", price: 35, images: JSON.stringify(["/images/seeds/desk-lamp.png"]), status: "active", location: "1号楼", cabinetDelivery: true },
       { schoolId: school.id, sellerId: serviceProvider.id, category: "daily", title: "未拆封洗衣液2L装", description: "囤多了，全新未拆封", price: 18, status: "active", location: "3号楼" },
       { schoolId: school.id, sellerId: seller.id, category: "electronics", title: "罗技G304无线鼠标", description: "用了一个学期，手感好，送鼠标垫", price: 120, status: "active", location: "1号楼" },
     ],

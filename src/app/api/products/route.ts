@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { maskLocation } from "@/lib/privacy";
+import { buildSearchFilter, sortByRelevance } from "@/lib/search";
 
 export async function GET(req: Request) {
   const session = await getSession();
@@ -18,11 +19,13 @@ export async function GET(req: Request) {
       ...(category ? { category } : {}),
       ...(session?.schoolId ? { schoolId: session.schoolId } : {}),
     };
+
     if (q) {
-      where.OR = [
-        { title: { contains: q } },
-        { description: { contains: q } },
-      ];
+      const searchFilter = buildSearchFilter(q, [
+        { field: "title" },
+        { field: "description" },
+      ]);
+      if (searchFilter) Object.assign(where, searchFilter);
     }
 
     const [products, total] = await Promise.all([
@@ -45,7 +48,10 @@ export async function GET(req: Request) {
       seller: { ...p.seller, dormitory: maskLocation(p.seller.dormitory) },
     }));
 
-    return apiSuccess({ products: masked, total, page, limit });
+    // 有搜索词时按相关性排序（标题匹配优先）
+    const sorted = q ? sortByRelevance(masked, q, "title", "description") : masked;
+
+    return apiSuccess({ products: sorted, total, page, limit });
   } catch (error) {
     return apiError("获取商品列表失败", 500);
   }

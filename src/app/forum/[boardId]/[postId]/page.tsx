@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale/zh-CN";
+import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 interface Comment {
   id: string;
@@ -74,20 +75,28 @@ export default function PostDetailPage() {
   const [replyContent, setReplyContent] = useState("");
   const [replyAnonymous, setReplyAnonymous] = useState(false);
 
-  useEffect(() => {
-    fetch(`/api/forum/posts/${postId}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success) {
-          setPost(d.data);
-          setLiked(d.data.isLiked);
-          setLikeCount(d.data.likeCount);
-          setFavorited(d.data.isFavorited);
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+  const fetchPost = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const res = await fetch(`/api/forum/posts/${postId}`);
+      const d = await res.json();
+      if (d.success) {
+        setPost(d.data);
+        setLiked(d.data.isLiked);
+        setLikeCount(d.data.likeCount);
+        setFavorited(d.data.isFavorited);
+      }
+    } catch { /* silent */ }
+    if (!silent) setLoading(false);
   }, [postId]);
+
+  useEffect(() => { fetchPost(); }, [fetchPost]);
+
+  // SSE：本帖子有新评论时静默刷新
+  const handleRealtime = useCallback((event: RealtimeEvent) => {
+    if (event.type === "forum" && event.targetId === postId) fetchPost(true);
+  }, [postId, fetchPost]);
+  useRealtime(handleRealtime, [postId]);
 
   const handleLike = async () => {
     if (!user) {

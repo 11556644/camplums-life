@@ -5,6 +5,7 @@ import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { generateOrderNo, ORDER_STATUS } from "@/lib/order-state-machine";
 import { calculateBookRentalPrice, getBookOriginalPrice } from "@/lib/pricing";
+import { broadcastEvent } from "@/lib/realtime";
 import { z } from "zod";
 
 const purchaseSchema = z.object({
@@ -198,11 +199,14 @@ export async function POST(req: Request) {
   });
 
   await domainEvent({
+    userId: session.userId,
     eventType: "order.created",
     aggregateType: "order",
     aggregateId: result.order.id,
     payload: { orderNo, totalAmount, totalBooks, rentalDays, dueDate: dueDate.toISOString() },
   });
+
+  broadcastEvent({ type: "textbook", action: "purchased", targetId: result.order.id, userId: session.userId });
 
   return apiSuccess({ ...result.order, rentalDays, dueDate });
 }

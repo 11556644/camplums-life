@@ -1,18 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
-const TASK_TYPES: Record<string, string> = {
-  errand: "跑腿",
-  delivery: "代取",
-  tutoring: "辅导",
-  skill_exchange: "技能交换",
-  repair: "维修",
-  other: "其他",
-};
+import { TASK_TYPE_LABELS } from "@/lib/constants";
+import { InlineLoader } from "@/components/skeletons";
+import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface Task {
   id: string;
@@ -30,28 +25,28 @@ interface Task {
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [type, setType] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [category, setCategory] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebounce(searchInput, 300);
 
-  useEffect(() => {
-    const fetchTasks = async () => {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (type) params.set("type", type);
-      if (searchQuery) params.set("q", searchQuery);
-      const res = await fetch(`/api/tasks?${params}`);
-      const data = await res.json();
-      if (data.success) setTasks(data.data.tasks);
-      setLoading(false);
-    };
-    fetchTasks();
-  }, [type, searchQuery]);
+  const fetchTasks = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    const params = new URLSearchParams();
+    if (category) params.set("type", category);
+    if (debouncedSearch) params.set("q", debouncedSearch);
+    const res = await fetch(`/api/tasks?${params}`);
+    const data = await res.json();
+    if (data.success) setTasks(data.data.tasks);
+    if (!silent) setLoading(false);
+  }, [category, debouncedSearch]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSearchQuery(searchInput);
-  };
+  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+
+  // SSE：任务变更时静默刷新
+  const handleRealtime = useCallback((event: RealtimeEvent) => {
+    if (event.type === "task") fetchTasks(true);
+  }, [fetchTasks]);
+  useRealtime(handleRealtime, [fetchTasks]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -60,7 +55,7 @@ export default function TasksPage() {
         <Link href="/tasks/publish" className="text-blue-600 hover:underline">发布任务</Link>
       </div>
 
-      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-4">
         <input
           type="text"
           placeholder="搜索任务..."
@@ -68,22 +63,21 @@ export default function TasksPage() {
           onChange={e => setSearchInput(e.target.value)}
           className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
-        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">搜索</button>
-        {searchQuery && <button type="button" onClick={() => { setSearchQuery(""); setSearchInput(""); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">清除</button>}
-      </form>
+        {searchInput && <button type="button" onClick={() => setSearchInput("")} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">清除</button>}
+      </div>
 
       <div className="flex gap-2 mb-6 flex-wrap">
         <button
-          onClick={() => setType("")}
-          className={`px-3 py-1 rounded-full text-sm ${!type ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+          onClick={() => setCategory("")}
+          className={`px-3 py-1 rounded-full text-sm ${!category ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
         >
           全部
         </button>
-        {Object.entries(TASK_TYPES).map(([key, label]) => (
+        {Object.entries(TASK_TYPE_LABELS).map(([key, { label }]) => (
           <button
             key={key}
-            onClick={() => setType(key)}
-            className={`px-3 py-1 rounded-full text-sm ${type === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            onClick={() => setCategory(key)}
+            className={`px-3 py-1 rounded-full text-sm ${category === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
           >
             {label}
           </button>
@@ -91,7 +85,7 @@ export default function TasksPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">加载中...</div>
+        <InlineLoader />
       ) : tasks.length === 0 ? (
         <div className="text-center py-12 text-gray-400">暂无任务</div>
       ) : (
@@ -102,7 +96,7 @@ export default function TasksPage() {
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
                     <CardTitle className="text-base line-clamp-1">{t.title}</CardTitle>
-                    <Badge variant="secondary" className="ml-2 shrink-0">{TASK_TYPES[t.type] || t.type}</Badge>
+                    <Badge variant="secondary" className="ml-2 shrink-0">{TASK_TYPE_LABELS[t.type]?.label || t.type}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent>

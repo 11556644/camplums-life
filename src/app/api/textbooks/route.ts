@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { buildSearchFilter } from "@/lib/search";
 
 // 获取教材列表
 export async function GET(req: Request) {
@@ -15,12 +16,13 @@ export async function GET(req: Request) {
     ...(session?.schoolId ? { schoolId: session.schoolId } : {}),
   };
   if (q) {
-    where.OR = [
-      { title: { contains: q } },
-      { author: { contains: q } },
-      { isbn: { contains: q } },
-      { course: { contains: q } },
-    ];
+    const searchFilter = buildSearchFilter(q, [
+      { field: "title" },
+      { field: "author" },
+      { field: "isbn" },
+      { field: "course" },
+    ]);
+    if (searchFilter) Object.assign(where, searchFilter);
   }
 
   try {

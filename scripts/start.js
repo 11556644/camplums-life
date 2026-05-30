@@ -3,16 +3,24 @@ const path = require("path");
 
 const isProduction = process.env.NODE_ENV === "production" || process.env.RAILWAY_ENVIRONMENT;
 
-// 1. 同步 Prisma schema（生产环境跳过本地 PG，直接用 DATABASE_URL）
+// 1. 同步 Prisma schema（安全模式，不丢数据）
 console.log("[db] Syncing schema...");
 try {
-  execSync("npx prisma db push --accept-data-loss --skip-generate", {
+  // 生产环境：不使用 --accept-data-loss，只做安全的增量变更（如 ADD COLUMN）
+  // 如果 schema 有破坏性变更（删列/改类型），这里会报错，需要手动处理
+  const flags = isProduction
+    ? "--skip-generate"
+    : "--accept-data-loss --skip-generate";
+  execSync(`npx prisma db push ${flags}`, {
     stdio: "pipe",
     cwd: __dirname.includes("scripts") ? path.join(__dirname, "..") : __dirname,
   });
   console.log("[db] Schema synced");
 } catch (e) {
-  console.log("[db] Schema sync skipped:", e.message?.slice(0, 100));
+  console.log("[db] Schema sync failed:", e.message?.slice(0, 200));
+  if (isProduction) {
+    console.log("[db] ⚠️ Production schema sync failed. If you have breaking changes, run manually: npx prisma db push --accept-data-loss");
+  }
 }
 
 // 2. 启动 Next.js

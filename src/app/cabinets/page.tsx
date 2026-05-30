@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { CabinetQRScanner, PickupCodeDisplay } from "@/components/cabinet-qr";
+import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 const SLOT_STATUS: Record<string, { label: string; color: string }> = {
   empty: { label: "空闲", color: "bg-green-100 text-green-800" },
@@ -55,23 +56,27 @@ export default function CabinetsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [myBindings, setMyBindings] = useState<{ id: string; pickupCode: string; status: string; expiresAt: string | null; depositType: string; slot: { slotNumber: number; cabinet: { name: string } }; photo: string | null }[]>([]);
 
-  const refreshCabinets = async () => {
+  const refreshCabinets = useCallback(async () => {
     const d = await fetch("/api/cabinets").then((r) => r.json());
     if (d.success) setCabinets(d.data);
-  };
+  }, []);
 
-  const refreshMyBindings = async () => {
+  const refreshMyBindings = useCallback(async () => {
     if (!user) return;
     const d = await fetch("/api/cabinets/mine").then((r) => r.json()).catch(() => null);
     if (d?.success) setMyBindings(d.data);
-  };
+  }, [user]);
 
   useEffect(() => {
     refreshCabinets().then(() => setLoading(false));
     refreshMyBindings();
-    const timer = setInterval(() => { refreshCabinets(); refreshMyBindings(); }, 5000);
-    return () => clearInterval(timer);
-  }, [user]);
+  }, [refreshCabinets, refreshMyBindings]);
+
+  // SSE：柜格状态变更时静默刷新
+  const handleRealtime = useCallback((event: RealtimeEvent) => {
+    if (event.type === "cabinet") { refreshCabinets(); refreshMyBindings(); }
+  }, [refreshCabinets, refreshMyBindings]);
+  useRealtime(handleRealtime, []);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

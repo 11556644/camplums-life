@@ -4,6 +4,7 @@ import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { ORDER_STATUS } from "@/lib/order-state-machine";
 import { changeCredit } from "@/lib/credit";
+import { broadcastEvent } from "@/lib/realtime";
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -183,6 +184,8 @@ export async function POST(req: Request) {
     targetId: copyId,
     detail: `归还《${copy.textbook.title}》，逾期${result.overdueDays}天，逾期费 ¥${result.lateFee}`,
   });
+
+  broadcastEvent({ type: "textbook", action: "returned", targetId: copyId, userId: session.userId });
 
   return apiSuccess({
     message: "归还成功，书籍进入消毒流程",

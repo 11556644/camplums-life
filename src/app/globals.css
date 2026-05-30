@@ -39,6 +39,19 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  
+  /* New Glassmorphism Mappings */
+  --color-glass-border: var(--glass-border);
+  --color-glass-highlight: var(--glass-highlight);
+  --color-glass-bg: var(--glass-bg);
+
+  /* Animation Mapping */
+  --animate-gradient: gradient 8s ease infinite;
+
+  /* Custom Easing for Micro-interactions */
+  --default-transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --default-transition-duration: 400ms;
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -49,72 +62,76 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
+  /* Restored Original Core Variables for UI elements (Buttons, Inputs, etc.) */
+  --background: oklch(0.99 0.005 240);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+
+  --primary: oklch(0.205 0 0); /* Original Near-Black */
   --primary-foreground: oklch(0.985 0 0);
+
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+
+  --card: oklch(1 0 0 / 0.4);
+  --card-foreground: oklch(0.145 0 0);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --radius: 0.625rem; /* Original Standard Radius */
+
+  /* Glassmorphism Constants */
+  --glass-bg: oklch(100% 0 0 / 12%);
+  --glass-border: oklch(100% 0 0 / 18%);
+  --glass-highlight: oklch(100% 0 0 / 30%);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.12 0.02 240);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
+
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+
+  --card: oklch(0.18 0.03 240 / 0.5);
+  --card-foreground: oklch(0.985 0 0);
+
+  --popover: oklch(0.18 0.03 240);
+  --popover-foreground: oklch(0.985 0 0);
+
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  /* Glassmorphism Dark Mode Overrides */
+  --glass-bg: oklch(0.18 0.03 240 / 30%);
+  --glass-border: oklch(1 0 0 / 15%);
+  --glass-highlight: oklch(1 0 0 / 8%); /* Softer inner highlight in dark mode */
 }
 
 @layer base {
@@ -122,9 +139,50 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-500 antialiased;
+    /* Advanced Mesh Gradient */
+    background-image: 
+      radial-gradient(at 0% 0%, oklch(0.75 0.15 260 / 0.12) 0px, transparent 55%),
+      radial-gradient(at 100% 0%, oklch(0.8 0.12 190 / 0.12) 0px, transparent 55%),
+      radial-gradient(at 100% 100%, oklch(0.7 0.18 320 / 0.08) 0px, transparent 55%),
+      radial-gradient(at 0% 100%, oklch(0.85 0.1 150 / 0.1) 0px, transparent 55%),
+      radial-gradient(at 50% 50%, oklch(0.6 0.2 260 / 0.05) 0px, transparent 60%);
+    background-attachment: fixed;
   }
-  html {
-    @apply font-sans;
+}
+
+@layer utilities {
+  .glass-card {
+    @apply relative overflow-hidden backdrop-blur-2xl saturate-[180%] bg-card border border-glass-border;
+    box-shadow: 
+      0 12px 40px 0 oklch(0% 0 0 / 5%),
+      inset 0 0 0 1px var(--glass-highlight);
+  }
+  
+  /* Noise Grain Texture */
+  .glass-card::before {
+    content: "";
+    @apply absolute inset-0 -z-10 opacity-[0.03] pointer-events-none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+
+  .text-creative-gradient {
+    @apply bg-clip-text text-transparent bg-linear-to-br from-indigo-600 via-blue-500 to-cyan-500 animate-gradient;
+    background-size: 200% 200%;
+  }
+
+  .bento-inner-shadow {
+    box-shadow: inset 0 2px 4px 0 oklch(100% 0 0 / 10%);
+  }
+
+  @keyframes gradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .animate-gradient {
+    animation: gradient 8s ease infinite;
   }
 }

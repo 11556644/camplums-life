@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale/zh-CN";
+import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 interface Board {
   id: string;
@@ -45,26 +46,31 @@ export default function ForumPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      try {
-        const [boardsRes, postsRes] = await Promise.all([
-          fetch("/api/forum/boards"),
-          fetch("/api/forum/posts?limit=10"),
-        ]);
-        const boardsData = await boardsRes.json();
-        const postsData = await postsRes.json();
-        if (boardsData.success) setBoards(boardsData.data);
-        if (postsData.success) setPosts(postsData.data.posts);
-      } catch {
-        // silent
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAll();
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const [boardsRes, postsRes] = await Promise.all([
+        fetch("/api/forum/boards"),
+        fetch("/api/forum/posts?limit=10"),
+      ]);
+      const boardsData = await boardsRes.json();
+      const postsData = await postsRes.json();
+      if (boardsData.success) setBoards(boardsData.data);
+      if (postsData.success) setPosts(postsData.data.posts);
+    } catch {
+      // silent
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // SSE：新帖子/评论时静默刷新
+  const handleRealtime = useCallback((event: RealtimeEvent) => {
+    if (event.type === "forum") fetchAll(true);
+  }, [fetchAll]);
+  useRealtime(handleRealtime, [fetchAll]);
 
   if (loading) {
     return (

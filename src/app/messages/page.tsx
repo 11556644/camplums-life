@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth";
 import { useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChatBox } from "@/components/chat-box";
+import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   system: { label: "系统", color: "bg-gray-100 text-gray-700" },
@@ -29,14 +30,7 @@ export default function MessagesPage() {
   const [filter, setFilter] = useState<string>("all");
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
 
-  useEffect(() => {
-    if (!user) { router.push("/login"); return; }
-    fetchMessages();
-    const timer = setInterval(fetchMessages, 10000);
-    return () => clearInterval(timer);
-  }, [user, router]);
-
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     const res = await fetch("/api/messages");
     const data = await res.json();
     if (data.success) {
@@ -58,9 +52,24 @@ export default function MessagesPage() {
       if (hasUnreadNotifications) {
         fetch("/api/messages/read", { method: "PATCH" }).catch(() => {});
       }
+      // 通知 Navbar 刷新未读数
+      if (unreadSenders.length > 0 || hasUnreadNotifications) {
+        window.dispatchEvent(new Event("unread-updated"));
+      }
     }
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!user) { router.push("/login"); return; }
+    fetchMessages();
+  }, [user, router, fetchMessages]);
+
+  // SSE：新消息时静默刷新
+  const handleRealtime = useCallback((event: RealtimeEvent) => {
+    if (event.type === "message") fetchMessages();
+  }, [fetchMessages]);
+  useRealtime(handleRealtime, []);
 
   // 从通知内容中提取关联实体链接
   const getEntityLink = (msg: Msg): { href: string; label: string } | null => {

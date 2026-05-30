@@ -72,10 +72,12 @@ export async function onPaymentSettled({ tx, order, userId }: SettleContext) {
   }
 
   // 柜格升级 reserved → occupied
+  // 注意：商品交易订单不在这里升级，需要卖家物理存入后由发货流程处理
   const bindings = await tx.cabinetSlotOrder.findMany({
     where: { orderId: order.id, status: "active" },
   });
   for (const binding of bindings) {
+    if (order.orderType === "product") continue; // 商品交易：保持 reserved，等卖家发货时变 occupied
     await tx.cabinetSlot.update({
       where: { id: binding.slotId, status: "reserved" },
       data: { status: "occupied" },

@@ -73,12 +73,18 @@ export async function auditLog(params: {
 // 领域事件：记录所有状态变更
 export async function domainEvent(params: {
   schoolId?: string;
+  userId?: string;
   eventType: string;
   aggregateType: string;
   aggregateId: string;
   payload?: Record<string, unknown>;
 }) {
-  const schoolId = params.schoolId || "";
+  // 自动推断 schoolId：优先传入值，其次从 userId 查
+  let schoolId = params.schoolId || null;
+  if (!schoolId && params.userId) {
+    const user = await db.user.findUnique({ where: { id: params.userId }, select: { schoolId: true } });
+    schoolId = user?.schoolId || null;
+  }
 
   try {
     await db.eventLog.create({

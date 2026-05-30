@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { getCreditPermissions } from "@/lib/credit";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { broadcastEvent } from "@/lib/realtime";
 import { z } from "zod";
 
 const schema = z.object({
@@ -13,7 +14,9 @@ const schema = z.object({
   category: z.string().min(1),
   location: z.string().optional(),
   images: z.array(z.string()).optional(),
-});
+  cabinetDelivery: z.boolean().default(false),
+  faceToFaceDelivery: z.boolean().default(true),
+}).refine(d => d.cabinetDelivery || d.faceToFaceDelivery, { message: "至少选择一种交收方式" });
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -54,6 +57,14 @@ export async function POST(req: Request) {
     targetType: "product",
     targetId: product.id,
     detail: `Published: ${product.title}`,
+  });
+
+  broadcastEvent({
+    type: "product",
+    action: "created",
+    targetId: product.id,
+    userId: session.userId,
+    data: { title: product.title, price: product.price },
   });
 
   return apiSuccess(product);

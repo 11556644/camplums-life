@@ -7,13 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: "待处理", color: "bg-yellow-100 text-yellow-800" },
-  reviewing: { label: "审核中", color: "bg-blue-100 text-blue-800" },
-  resolved: { label: "已解决", color: "bg-green-100 text-green-800" },
-  rejected: { label: "已驳回", color: "bg-red-100 text-red-800" },
-};
+import { DISPUTE_STATUS_LABELS } from "@/lib/constants";
 
 interface Dispute {
   id: string;
@@ -69,7 +63,7 @@ export default function DisputesPage() {
       ) : (
         <div className="space-y-3">
           {disputes.map((d) => {
-            const status = STATUS_LABELS[d.status] || { label: d.status, color: "bg-gray-100" };
+            const status = DISPUTE_STATUS_LABELS[d.status] || { label: d.status, color: "bg-gray-100" };
             return (
               <Card key={d.id}>
                 <CardContent className="py-4">

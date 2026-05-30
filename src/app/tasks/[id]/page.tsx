@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ChatButton } from "@/components/chat-box";
+import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 const TASK_TYPES: Record<string, string> = {
   errand: "跑腿", delivery: "代取", tutoring: "辅导",
@@ -68,14 +69,21 @@ export default function TaskDetailPage() {
   const [accepting, setAccepting] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const fetchTask = async () => {
+  const fetchTask = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const res = await fetch(`/api/tasks/${params.id}`);
     const d = await res.json();
     if (d.success) setTask(d.data);
-    setLoading(false);
-  };
+    if (!silent) setLoading(false);
+  }, [params.id]);
 
-  useEffect(() => { fetchTask(); }, [params.id]);
+  useEffect(() => { fetchTask(); }, [fetchTask]);
+
+  // SSE：任务状态变更时静默刷新
+  const handleRealtime = useCallback((event: RealtimeEvent) => {
+    if (event.type === "task" && event.targetId === params.id) fetchTask(true);
+  }, [params.id, fetchTask]);
+  useRealtime(handleRealtime, [params.id]);
 
   const handleAccept = async () => {
     if (!user) { router.push("/login"); return; }

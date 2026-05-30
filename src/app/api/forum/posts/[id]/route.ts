@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { z } from "zod";
+import { broadcastEvent } from "@/lib/realtime";
 
 const commentSchema = z.object({
   content: z.string().min(1, "评论不能为空").max(10000, "评论最多10000字"),
@@ -187,6 +188,14 @@ export async function POST(
       ...comment,
       author: comment.isAnonymous ? ANONYMOUS_AUTHOR : comment.author,
     };
+
+    broadcastEvent({
+      type: "forum",
+      action: "new_comment",
+      targetId: id,
+      userId: session.userId,
+      data: { commentId: comment.id },
+    });
 
     return apiSuccess(masked);
   } catch {

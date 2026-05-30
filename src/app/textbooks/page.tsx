@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 interface Textbook {
   id: string;
@@ -71,22 +72,28 @@ export default function TextbooksPage() {
     { days: 365, label: "1学年", multiplier: 1.6 },
   ];
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const tbUrl = searchQuery ? `/api/textbooks?q=${encodeURIComponent(searchQuery)}` : "/api/textbooks";
-      const [tbRes, cabRes, planRes] = await Promise.all([
-        fetch(tbUrl),
-        fetch("/api/cabinets"),
-        fetch("/api/subscriptions"),
-      ]);
-      const [tbData, cabData, planData] = await Promise.all([tbRes.json(), cabRes.json(), planRes.json()]);
-      if (tbData.success) setTextbooks(tbData.data);
-      if (cabData.success) setCabinets(cabData.data);
-      if (planData.success) setPlans(planData.data);
-      setLoading(false);
-    };
-    fetchData();
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    const tbUrl = searchQuery ? `/api/textbooks?q=${encodeURIComponent(searchQuery)}` : "/api/textbooks";
+    const [tbRes, cabRes, planRes] = await Promise.all([
+      fetch(tbUrl),
+      fetch("/api/cabinets"),
+      fetch("/api/subscriptions"),
+    ]);
+    const [tbData, cabData, planData] = await Promise.all([tbRes.json(), cabRes.json(), planRes.json()]);
+    if (tbData.success) setTextbooks(tbData.data);
+    if (cabData.success) setCabinets(cabData.data);
+    if (planData.success) setPlans(planData.data);
+    if (!silent) setLoading(false);
   }, [searchQuery]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // SSE：教材借还时静默刷新
+  const handleRealtime = useCallback((event: RealtimeEvent) => {
+    if (event.type === "textbook") fetchData(true);
+  }, [fetchData]);
+  useRealtime(handleRealtime, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

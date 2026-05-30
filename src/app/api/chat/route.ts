@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { publishEvent } from "@/lib/realtime";
 
 // 获取与某人的聊天记录
 export async function GET(req: Request) {
@@ -54,6 +55,15 @@ export async function POST(req: Request) {
       metadata: Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null,
     },
   });
+
+  // 实时推送给接收者（携带完整消息体，客户端无需再请求）
+  publishEvent({
+    type: "message",
+    action: "new_message",
+    targetId: message.id,
+    userId: session.userId,
+    data: { message },
+  }, [receiverId]);
 
   return apiSuccess(message);
 }
