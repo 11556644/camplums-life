@@ -12,6 +12,7 @@ export async function GET() {
 
   try {
     const cabinets = await db.cabinet.findMany({
+      where: { schoolId: session.schoolId },
       include: {
         slots: { orderBy: { slotNumber: "asc" } },
       },

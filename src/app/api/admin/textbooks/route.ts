@@ -13,6 +13,7 @@ export async function GET() {
 
   try {
     const books = await db.textbook.findMany({
+      where: { schoolId: user.schoolId },
       include: {
         copies: { select: { id: true, condition: true, status: true } },
       },

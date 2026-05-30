@@ -1,9 +1,18 @@
 import { db } from "@/lib/db";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { canTransition, ORDER_STATUS } from "@/lib/order-state-machine";
+import { onOrderCancelled } from "@/lib/settlement";
 
 // 扫描并处理过期柜格（可由定时任务或手动调用）
-export async function POST() {
+export async function POST(req: Request) {
+  // Cron secret 认证
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader !== `Bearer ${cronSecret}`) return apiError("未授权", 401);
+  }
+
   try {
     const now = new Date();
     const expiredBindings = await db.cabinetSlotOrder.findMany({
@@ -43,7 +52,7 @@ export async function POST() {
         });
 
         // 通知存件人
-        const cabinetSchoolId = binding.slot?.cabinet?.schoolId || "school_001";
+        const cabinetSchoolId = binding.slot?.cabinet?.schoolId || binding.order?.schoolId || "";
         await tx.message.create({
           data: {
             schoolId: cabinetSchoolId,
@@ -66,26 +75,16 @@ export async function POST() {
             },
           });
 
-          // 已支付订单自动退款
-          if (binding.order.status === "paid") {
+          // 已支付订单自动取消退款
+          if (binding.order.status === ORDER_STATUS.PAID && canTransition(binding.order.orderType, binding.order.status, ORDER_STATUS.CANCELLED)) {
+            const prevStatus = binding.order.status;
             await tx.order.update({
               where: { id: binding.orderId! },
-              data: { status: "cancelled", cancelledAt: new Date() },
+              data: { status: ORDER_STATUS.CANCELLED, cancelledAt: new Date() },
             });
-            const wallet = await tx.wallet.findUnique({ where: { userId: binding.order.buyerId } });
-            if (wallet) {
-              await tx.wallet.update({
-                where: { userId: binding.order.buyerId },
-                data: { balance: wallet.balance + binding.order.totalAmount },
-              });
-              await tx.walletTransaction.create({
-                data: {
-                  walletId: wallet.id, type: "refund", amount: binding.order.totalAmount,
-                  balanceBefore: wallet.balance, balanceAfter: wallet.balance + binding.order.totalAmount,
-                  orderId: binding.orderId, method: "auto", status: "success",
-                },
-              });
-            }
+            // 统一取消副作用（退款、商品恢复、教材释放）
+            await onOrderCancelled({ tx, order: binding.order, userId: binding.order.buyerId, prevStatus });
+
             await tx.message.create({
               data: {
                 schoolId: binding.order.schoolId, receiverId: binding.order.buyerId,
@@ -93,44 +92,13 @@ export async function POST() {
                 content: `订单 ${binding.order.orderNo} 因取件超时已自动取消，¥${binding.order.totalAmount} 已退还到钱包。`,
               },
             });
-
-            // 恢复商品上架
-            const orderItems = await tx.orderItem.findMany({ where: { orderId: binding.orderId! } });
-            for (const item of orderItems) {
-              if (item.productId) {
-                await tx.product.update({ where: { id: item.productId }, data: { status: "active" } });
-              }
-            }
-
-            // 释放教材副本（subscription 订单）
-            if (binding.order.orderType === "subscription") {
-              for (const item of orderItems) {
-                if (item.textbookId) {
-                  const reservedCopies = await tx.textbookCopy.findMany({
-                    where: { textbookId: item.textbookId, borrowerId: binding.order.buyerId, status: { in: ["reserved", "borrowed"] } },
-                  });
-                  for (const copy of reservedCopies) {
-                    await tx.textbookCopy.update({
-                      where: { id: copy.id },
-                      data: { status: "available", borrowerId: null, borrowedAt: null, dueDate: null },
-                    });
-                    await tx.inventoryTransaction.create({
-                      data: {
-                        copyId: copy.id, fromStatus: copy.status, toStatus: "available",
-                        detail: `柜格过期自动释放`,
-                      },
-                    });
-                  }
-                }
-              }
-            }
           }
         }
 
         // 审计日志
         await tx.auditLog.create({
           data: {
-            schoolId: binding.order?.schoolId || "school_001",
+            schoolId: binding.order?.schoolId || binding.slot?.cabinet?.schoolId || "",
             action: "cabinet_expired", targetType: "cabinet", targetId: binding.slotId,
             detail: `取件码 ${binding.pickupCode} 过期，柜格已释放`,
           },

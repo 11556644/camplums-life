@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
 import { db } from "@/lib/db";
+import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { maskLocation } from "@/lib/privacy";
 
 export async function GET(req: Request) {
+  const session = await getSession();
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");
   const q = searchParams.get("q")?.trim();
@@ -14,6 +16,7 @@ export async function GET(req: Request) {
     const where: Record<string, unknown> = {
       status: "active",
       ...(category ? { category } : {}),
+      ...(session?.schoolId ? { schoolId: session.schoolId } : {}),
     };
     if (q) {
       where.OR = [

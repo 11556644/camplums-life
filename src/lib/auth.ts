@@ -22,6 +22,7 @@ export interface JwtPayload {
   userId: string;
   phone: string;
   roles: string[];
+  schoolId: string;
 }
 
 // 简易状态缓存：避免每次 API 请求都查数据库

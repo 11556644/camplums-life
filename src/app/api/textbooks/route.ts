@@ -1,15 +1,18 @@
 export const dynamic = "force-dynamic";
 import { db } from "@/lib/db";
+import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
 
 // 获取教材列表
 export async function GET(req: Request) {
+  const session = await getSession();
   const { searchParams } = new URL(req.url);
   const department = searchParams.get("department");
   const q = searchParams.get("q")?.trim();
 
   const where: Record<string, unknown> = {
     ...(department ? { department } : {}),
+    ...(session?.schoolId ? { schoolId: session.schoolId } : {}),
   };
   if (q) {
     where.OR = [

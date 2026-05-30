@@ -13,6 +13,7 @@ const createPostSchema = z.object({
 });
 
 export async function GET(req: Request) {
+  const session = await getSession();
   const { searchParams } = new URL(req.url);
   const boardId = searchParams.get("boardId");
   const q = searchParams.get("q")?.trim();
@@ -23,6 +24,7 @@ export async function GET(req: Request) {
     const where: Record<string, unknown> = {
       status: "active",
       ...(boardId ? { boardId } : {}),
+      ...(session?.schoolId ? { schoolId: session.schoolId } : {}),
     };
     if (q) {
       where.OR = [

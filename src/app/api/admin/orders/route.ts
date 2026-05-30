@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "20");
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { schoolId: session.schoolId };
   if (status && status !== "all") where.status = status;
 
   const [orders, total] = await Promise.all([

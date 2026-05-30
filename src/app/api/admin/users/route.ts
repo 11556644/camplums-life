@@ -19,6 +19,7 @@ export async function GET(req: Request) {
   try {
     const [users, total] = await Promise.all([
       db.user.findMany({
+        where: { schoolId: session.schoolId },
         select: {
           id: true, phone: true, nickname: true, studentId: true, department: true,
           dormitory: true, status: true, createdAt: true,
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
         skip: (page - 1) * limit,
         take: limit,
       }),
-      db.user.count(),
+      db.user.count({ where: { schoolId: session.schoolId } }),
     ]);
 
     return apiSuccess({ users, total, page, limit });
@@ -67,7 +68,7 @@ export async function PATCH(req: Request) {
     await db.auditLog.create({
       data: {
         userId: session.userId,
-        schoolId: admin?.schoolId || "school_001",
+        schoolId: admin?.schoolId || session.schoolId,
         action: `admin_user_${status}`,
         targetType: "user",
         targetId: userId,
@@ -78,7 +79,7 @@ export async function PATCH(req: Request) {
     // 通知被操作用户
     await db.message.create({
       data: {
-        schoolId: "school_001",
+        schoolId: admin?.schoolId || session.schoolId,
         receiverId: userId,
         type: "notification",
         title: status === "banned" ? "账号已被封禁" : status === "active" ? "账号已解封" : "账号状态变更",

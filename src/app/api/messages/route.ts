@@ -9,7 +9,7 @@ export async function GET() {
 
   try {
     const messages = await db.message.findMany({
-      where: { receiverId: session.userId },
+      where: { receiverId: session.userId, schoolId: session.schoolId },
       orderBy: { createdAt: "desc" },
       take: 50,
     });

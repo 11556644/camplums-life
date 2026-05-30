@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
-import { ORDER_STATUS } from "@/lib/order-state-machine";
+import { canTransition, ORDER_STATUS } from "@/lib/order-state-machine";
 
 // 取件
 export async function POST(req: Request) {
@@ -55,11 +55,13 @@ export async function POST(req: Request) {
     // 联动更新订单状态
     if (binding.orderId && binding.order) {
       if (reject) {
-        // 拒收：更新订单为纠纷状态，通知卖家
-        await tx.order.update({
-          where: { id: binding.orderId },
-          data: { status: ORDER_STATUS.DISPUTED },
-        });
+        // 拒收：更新订单为纠纷状态（状态机校验）
+        if (canTransition(binding.order.orderType, binding.order.status, ORDER_STATUS.DISPUTED)) {
+          await tx.order.update({
+            where: { id: binding.orderId },
+            data: { status: ORDER_STATUS.DISPUTED },
+          });
+        }
         await tx.message.create({
           data: {
             schoolId: binding.order.schoolId,
@@ -71,7 +73,7 @@ export async function POST(req: Request) {
         });
       } else {
         // 正常取件：更新订单为已送达（等待买家确认收货）
-        if (binding.order.status === ORDER_STATUS.SHIPPED || binding.order.status === ORDER_STATUS.PAID) {
+        if (canTransition(binding.order.orderType, binding.order.status, ORDER_STATUS.DELIVERED)) {
           await tx.order.update({
             where: { id: binding.orderId },
             data: { status: ORDER_STATUS.DELIVERED },

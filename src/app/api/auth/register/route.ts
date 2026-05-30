@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       data: {
         schoolId, phone, passwordHash, nickname, studentId, department, dormitory,
         roles: { create: { role: "buyer", schoolId } },
-        creditScore: { create: { score: 100, schoolId } },
+        creditScore: { create: { score: 600, schoolId } },
       },
       include: { roles: true },
     });
@@ -44,6 +44,7 @@ export async function POST(req: Request) {
       userId: user.id,
       phone: user.phone,
       roles: user.roles.map((r: { role: string }) => r.role),
+      schoolId: user.schoolId,
     });
 
     await auditLog({

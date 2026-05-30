@@ -23,7 +23,7 @@ export async function GET() {
   if (!wallet) {
     const user = await db.user.findUnique({ where: { id: session.userId }, select: { schoolId: true } });
     wallet = await db.wallet.create({
-      data: { userId: session.userId, schoolId: user?.schoolId || "school_001", balance: 0 },
+      data: { userId: session.userId, schoolId: user?.schoolId || session.schoolId, balance: 0 },
       include: { transactions: true },
     });
   }
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   if (!session) return apiError("请先登录", 401);
 
   const currentUser = await db.user.findUnique({ where: { id: session.userId }, select: { schoolId: true } });
-  const schoolId = currentUser?.schoolId || "school_001";
+  const schoolId = currentUser?.schoolId || session.schoolId;
 
   const body = await req.json();
   const { action, amount, method, orderId } = body;

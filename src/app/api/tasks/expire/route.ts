@@ -1,16 +1,20 @@
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent, logger } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { canTransition, ORDER_STATUS } from "@/lib/order-state-machine";
+import { onOrderCompleted, onOrderCancelled } from "@/lib/settlement";
 
 const PAYMENT_TIMEOUT_MS = 30 * 60 * 1000; // 30 分钟
 const PUBLISHER_CONFIRM_TIMEOUT_MS = 30 * 60 * 1000; // 30 分钟
 
 export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
+  // Cron secret 认证
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader !== `Bearer ${cronSecret}`) return apiError("未授权", 401);
+  }
 
-  // TODO: 生产环境应加 cron key 校验，防止非授权调用
   const now = new Date();
   let autoCancelled = 0;
   let deadlineNotified = 0;
@@ -35,10 +39,16 @@ export async function POST(req: Request) {
     if (!pendingOrder) continue;
 
     await db.$transaction(async (tx: any) => {
-      // 取消订单
+      // 状态机校验
+      if (!canTransition(pendingOrder.orderType, pendingOrder.status, ORDER_STATUS.CANCELLED)) {
+        logger.warn("Task auto-cancel skipped: invalid transition", { orderId: pendingOrder.id, status: pendingOrder.status });
+        return;
+      }
+
+      const prevStatus = pendingOrder.status;
       await tx.order.update({
         where: { id: pendingOrder.id },
-        data: { status: "cancelled" },
+        data: { status: ORDER_STATUS.CANCELLED, cancelledAt: new Date() },
       });
 
       // 释放任务回 open
@@ -52,6 +62,9 @@ export async function POST(req: Request) {
         },
       });
 
+      // 统一取消副作用（退款等）
+      await onOrderCancelled({ tx, order: pendingOrder, userId: task.publisherId, prevStatus });
+
       // 通知接单人
       await tx.message.create({
         data: {
@@ -60,7 +73,7 @@ export async function POST(req: Request) {
           receiverId: pendingOrder.sellerId,
           type: "notification",
           title: "任务接单已超时",
-          content: `您接单的「${task.title}」因发布者超过 30 分钟未支付，已自动取消。`,
+          content: `您接单的「${task.title}」因发布者超时，已自动取消。`,
         },
       });
 
@@ -72,7 +85,7 @@ export async function POST(req: Request) {
           receiverId: task.publisherId,
           type: "notification",
           title: "任务接单已超时取消",
-          content: `您发布的「${task.title}」因超过 30 分钟未支付，已自动取消接单，任务已重新开放。`,
+          content: `您发布的「${task.title}」因超时，已自动取消接单，任务已重新开放。`,
         },
       });
     });
@@ -155,10 +168,18 @@ export async function POST(req: Request) {
         data: { status: "completed" },
       });
 
+      if (!canTransition(activeOrder.orderType, activeOrder.status, ORDER_STATUS.COMPLETED)) {
+        logger.warn("Task auto-complete skipped: invalid order transition", { orderId: activeOrder.id, status: activeOrder.status });
+        return;
+      }
+
       await tx.order.update({
         where: { id: activeOrder.id },
-        data: { status: "completed", completedAt: now },
+        data: { status: ORDER_STATUS.COMPLETED, completedAt: now },
       });
+
+      // 统一完成副作用（结算、信用分、通知）
+      await onOrderCompleted({ tx, order: activeOrder, userId: task.publisherId });
 
       // 通知双方
       await tx.message.create({

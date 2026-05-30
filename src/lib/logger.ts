@@ -50,7 +50,7 @@ export async function auditLog(params: {
     const user = await db.user.findUnique({ where: { id: params.userId }, select: { schoolId: true } });
     schoolId = user?.schoolId;
   }
-  if (!schoolId) schoolId = "school_001";
+  if (!schoolId) schoolId = "";
 
   try {
     await db.auditLog.create({
@@ -78,7 +78,7 @@ export async function domainEvent(params: {
   aggregateId: string;
   payload?: Record<string, unknown>;
 }) {
-  const schoolId = params.schoolId || "school_001";
+  const schoolId = params.schoolId || "";
 
   try {
     await db.eventLog.create({

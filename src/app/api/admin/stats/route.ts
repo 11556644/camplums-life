@@ -13,14 +13,15 @@ export async function GET() {
 
   try {
     const [userCount, productCount, orderCount, taskCount, cabinetCount, textbookCount, totalRevenue, recentOrders, recentAuditLogs] = await Promise.all([
-      db.user.count(),
-      db.product.count({ where: { status: "active" } }),
-      db.order.count(),
-      db.task.count({ where: { status: "open" } }),
-      db.cabinet.count(),
-      db.textbook.count(),
-      db.payment.aggregate({ where: { status: "success" }, _sum: { amount: true } }),
+      db.user.count({ where: { schoolId: session.schoolId } }),
+      db.product.count({ where: { status: "active", schoolId: session.schoolId } }),
+      db.order.count({ where: { schoolId: session.schoolId } }),
+      db.task.count({ where: { status: "open", schoolId: session.schoolId } }),
+      db.cabinet.count({ where: { schoolId: session.schoolId } }),
+      db.textbook.count({ where: { schoolId: session.schoolId } }),
+      db.payment.aggregate({ where: { status: "success", order: { schoolId: session.schoolId } }, _sum: { amount: true } }),
       db.order.findMany({
+        where: { schoolId: session.schoolId },
         take: 10,
         orderBy: { createdAt: "desc" },
         include: {
@@ -29,6 +30,7 @@ export async function GET() {
         },
       }),
       db.auditLog.findMany({
+        where: { schoolId: session.schoolId },
         take: 20,
         orderBy: { createdAt: "desc" },
         include: { user: { select: { nickname: true } } },

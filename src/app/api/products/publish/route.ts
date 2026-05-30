@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { getCreditPermissions } from "@/lib/credit";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { z } from "zod";
@@ -26,8 +27,8 @@ export async function POST(req: Request) {
   if (!user) return apiError("用户不存在");
 
   // 信用分门禁
-  const creditScore = await db.creditScore.findUnique({ where: { userId: session.userId } });
-  if (creditScore && creditScore.score < 30) return apiError("信用分过低（低于30），暂时无法发布商品");
+  const perms = await getCreditPermissions(session.userId);
+  if (!perms.canPublish) return apiError("信用分不足，无法发布商品");
 
   // 确保有卖家角色
   const hasSellerRole = await db.userRole.findFirst({

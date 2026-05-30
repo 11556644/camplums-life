@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") || "active";
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { schoolId: session.schoolId };
   if (status !== "all") where.status = status;
 
   const products = await db.product.findMany({
