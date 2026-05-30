@@ -29,6 +29,7 @@ export default function PublishTaskPage() {
     budget: "",
     budgetType: "fixed",
     location: "",
+    executionMinutes: "120",
   });
   const [loading, setLoading] = useState(false);
 
@@ -47,6 +48,7 @@ export default function PublishTaskPage() {
         body: JSON.stringify({
           ...form,
           budget: form.budget ? parseFloat(form.budget) : null,
+          executionMinutes: parseInt(form.executionMinutes, 10),
         }),
       });
       const data = await res.json();
@@ -100,6 +102,22 @@ export default function PublishTaskPage() {
             <div className="space-y-2">
               <Label>地点</Label>
               <Input value={form.location} onChange={(e) => updateForm("location", e.target.value)} placeholder="如：图书馆" />
+            </div>
+            <div className="space-y-2">
+              <Label>执行时限 *</Label>
+              <select value={form.executionMinutes} onChange={(e) => updateForm("executionMinutes", e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm">
+                <option value="30">30 分钟</option>
+                <option value="60">1 小时</option>
+                <option value="90">1.5 小时</option>
+                <option value="120">2 小时</option>
+                <option value="180">3 小时</option>
+                <option value="240">4 小时</option>
+                <option value="360">6 小时</option>
+                <option value="480">8 小时</option>
+                <option value="720">12 小时</option>
+                <option value="1440">24 小时</option>
+              </select>
+              <p className="text-xs text-gray-400">接单后开始倒计时，最少 30 分钟</p>
             </div>
             <Button type="submit" className="w-full" disabled={loading}>{loading ? "发布中..." : "发布"}</Button>
           </form>

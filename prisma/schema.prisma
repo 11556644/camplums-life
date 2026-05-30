@@ -127,6 +127,7 @@ model Task {
   status            String    @default("open") // open, assigned, in_progress, completed, cancelled, expired
   location          String?
   deadline          DateTime? // 用户设定的截止时间
+  executionMinutes  Int?      // 发布者设定的执行时限（分钟），最少30
   acceptedAt        DateTime? // 接单时间
   executionDeadline DateTime? // 执行截止时间（接单后自动计算）
   completedProof    String?   // 完成证明（照片URL）

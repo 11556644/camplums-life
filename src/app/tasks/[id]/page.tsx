@@ -47,6 +47,7 @@ interface TaskDetail {
   budgetType: string;
   publisherId: string;
   assigneeId: string | null;
+  executionMinutes: number | null;
   location: string | null;
   deadline: string | null;
   acceptedAt: string | null;
@@ -203,7 +204,11 @@ export default function TaskDetailPage() {
             )}
             <p>位置：{(task.location || "未填写")}</p>
             {(task.deadline || "") && <p>截止时间：{new Date(String(task.deadline)).toLocaleString("zh-CN")}</p>}
-            <p>执行时限：{TASK_EXEC_LIMITS[task.type] || "2小时"}</p>
+            <p>执行时限：{task.executionMinutes
+              ? (task.executionMinutes >= 60
+                  ? `${Math.floor(task.executionMinutes / 60)}小时${task.executionMinutes % 60 ? task.executionMinutes % 60 + "分钟" : ""}`
+                  : `${task.executionMinutes}分钟`)
+              : (TASK_EXEC_LIMITS[task.type] || "2小时")}</p>
             {task.executionDeadline && (
               <p>执行截止：<span className={new Date(task.executionDeadline) < new Date() ? "text-red-600 font-medium" : "text-orange-600"}>
                 {new Date(task.executionDeadline).toLocaleString("zh-CN")}

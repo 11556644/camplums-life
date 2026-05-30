@@ -14,6 +14,7 @@ const schema = z.object({
   budgetType: z.string().default("fixed"),
   location: z.string().optional(),
   deadline: z.coerce.date().optional(),
+  executionMinutes: z.number().int().min(30).max(1440).default(120),
 });
 
 export async function POST(req: Request) {
@@ -63,6 +64,7 @@ export async function POST(req: Request) {
         budgetType: parsed.data.budgetType,
         location: parsed.data.location,
         deadline: parsed.data.deadline ?? null,
+        executionMinutes: parsed.data.executionMinutes,
       },
     });
 

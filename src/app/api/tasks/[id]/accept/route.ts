@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
-import { getCreditPermissions, getExecutionDeadline } from "@/lib/credit";
+import { getCreditPermissions, TASK_EXECUTION_LIMITS } from "@/lib/credit";
 import { generateOrderNo, ORDER_STATUS } from "@/lib/order-state-machine";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -58,6 +58,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const acceptedAt = new Date();
+    const execMinutes = task.executionMinutes || TASK_EXECUTION_LIMITS[task.type] || 120;
+    const executionDeadline = new Date(acceptedAt.getTime() + execMinutes * 60 * 1000);
 
     await tx.task.update({
       where: { id, status: "open" },
@@ -65,7 +67,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         status: "assigned",
         assigneeId: session.userId,
         acceptedAt,
-        executionDeadline: getExecutionDeadline(task.type, acceptedAt),
+        executionDeadline,
       },
     });
 
