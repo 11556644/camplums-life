@@ -118,7 +118,7 @@ export function ChatBox({ receiverId, receiverName, productId, orderId, open, on
               const isMe = msg.senderId === user.id;
               const meta = parseMetadata(msg.metadata);
               return (
-                <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                <div key={msg.id} className={`flex w-full ${isMe ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[75%] px-3 py-1.5 rounded-xl text-sm ${isMe ? "bg-blue-500 text-white rounded-br-sm" : "bg-white border rounded-bl-sm"}`}>
                     {/* 图片 */}
                     {meta.images && meta.images.length > 0 && (

@@ -126,6 +126,14 @@ export async function PATCH(
       await onPaymentSettled({ tx, order, userId: session.userId });
     }
 
+    // 任务订单开始执行：同步更新任务状态
+    if (action === "start" && order.orderType === "task") {
+      const taskItem = await tx.orderItem.findFirst({ where: { orderId: order.id, taskId: { not: null } } });
+      if (taskItem?.taskId) {
+        await tx.task.update({ where: { id: taskItem.taskId }, data: { status: "in_progress" } });
+      }
+    }
+
     // 发货时自动创建物流路线
     if (action === "ship") {
       const route = await tx.logisticsRoute.create({

@@ -211,16 +211,22 @@ export default function OrderDetailPage() {
             }}>标记完成</Button>
           )}
 
-          {/* 发布者：确认完成（任务订单执行中） */}
-          {orderType === "task" && orderStatus === "in_progress" && isBuyer && (
-            <Button className="w-full" onClick={async () => {
-              const taskId = (order.items as Array<{ taskId?: string }>)?.[0]?.taskId;
-              if (!taskId) return toast.error("任务ID缺失");
-              const res = await fetch(`/api/tasks/${taskId}/complete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: params.id }) });
-              const d = await res.json();
-              if (d.success) { toast.success("任务已完成"); refreshOrder(); } else toast.error(d.error);
-            }}>确认完成</Button>
-          )}
+          {/* 发布者：确认完成（任务订单执行中 + 服务方已标记完成） */}
+          {orderType === "task" && orderStatus === "in_progress" && isBuyer && (() => {
+            const taskItem = (order.items as Array<{ taskId?: string; task?: { supplierDoneAt?: string | null } }>)?.[0];
+            const supplierDone = Boolean(taskItem?.task?.supplierDoneAt);
+            if (!supplierDone) {
+              return <p className="text-sm text-gray-500">服务方正在执行中，请等待完成。</p>;
+            }
+            return (
+              <Button className="w-full" onClick={async () => {
+                if (!taskItem?.taskId) return toast.error("任务ID缺失");
+                const res = await fetch(`/api/tasks/${taskItem.taskId}/complete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: params.id }) });
+                const d = await res.json();
+                if (d.success) { toast.success("任务已完成"); refreshOrder(); } else toast.error(d.error);
+              }}>确认完成</Button>
+            );
+          })()}
 
           {/* 买家：确认收货（商品订单已发货/已送达） */}
           {orderType === "product" && (orderStatus === "shipped" || orderStatus === "delivered") && isBuyer && (
