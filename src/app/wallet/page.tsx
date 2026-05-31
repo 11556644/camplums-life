@@ -92,12 +92,12 @@ export default function WalletPage() {
   if (!user || loading) return <div className="container mx-auto px-4 py-12 text-center text-gray-400">加载中...</div>;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-lg">
-      <h1 className="text-2xl font-bold mb-6">我的钱包</h1>
+    <div className="container mx-auto px-4 py-5 max-w-xl">
+      <h1 className="text-xl font-bold mb-4">我的钱包</h1>
 
       {/* 余额卡片 */}
-      <Card className="mb-6 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
-        <CardContent className="pt-6">
+      <Card className="mb-4 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
+        <CardContent className="pt-4 pb-4">
           <div className="text-sm opacity-80 mb-1">钱包余额</div>
           <div className="text-4xl font-bold mb-4">¥{wallet?.balance.toFixed(2) || "0.00"}</div>
           <div className="flex gap-4 text-sm opacity-70">
@@ -107,7 +107,7 @@ export default function WalletPage() {
       </Card>
 
       {/* 充值 */}
-      <Card className="mb-6">
+      <Card className="mb-4">
         <CardHeader>
           <CardTitle className="text-lg">充值</CardTitle>
         </CardHeader>

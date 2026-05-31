@@ -52,9 +52,9 @@ export default function MySubscriptionsPage() {
   if (!user) return null;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">我的订阅</h1>
+    <div className="container mx-auto px-4 py-5 max-w-2xl">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold">我的订阅</h1>
         <Link href="/textbooks/my" className="text-blue-600 hover:underline text-sm">我的教材</Link>
       </div>
 

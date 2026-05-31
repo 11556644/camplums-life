@@ -48,39 +48,40 @@ export default function ProductsPage() {
   useRealtime(handleRealtime, [fetchProducts]);
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">闲置市场</h1>
-        <Link href="/products/publish" className="text-blue-600 hover:underline">发布商品</Link>
+    <div className="container mx-auto px-4 py-5">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold">闲置市场</h1>
+        <Link href="/products/publish" className="text-sm text-blue-600 hover:underline">发布商品</Link>
       </div>
 
-      <div className="flex gap-2 mb-4">
+      {/* 搜索 + 筛选合并 */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         <input
           type="text"
           placeholder="搜索商品..."
           value={searchInput}
           onChange={e => setSearchInput(e.target.value)}
-          className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="w-48 sm:w-64 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
-        {searchInput && <button type="button" onClick={() => setSearchInput("")} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">清除</button>}
-      </div>
-
-      <div className="flex gap-2 mb-6 flex-wrap">
-        <button
-          onClick={() => setCategory("")}
-          className={`px-3 py-1 rounded-full text-sm ${!category ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
-        >
-          全部
-        </button>
-        {Object.entries(CATEGORY_LABELS).map(([key, { label }]) => (
+        {searchInput && <button type="button" onClick={() => setSearchInput("")} className="text-sm text-gray-500 hover:text-gray-700">清除</button>}
+        <div className="h-5 w-px bg-gray-200 hidden sm:block" />
+        <div className="flex gap-2 flex-wrap">
           <button
-            key={key}
-            onClick={() => setCategory(key)}
-            className={`px-3 py-1 rounded-full text-sm ${category === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            onClick={() => setCategory("")}
+            className={`px-3 py-1.5 rounded-full text-sm ${!category ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
           >
-            {label}
+            全部
           </button>
-        ))}
+          {Object.entries(CATEGORY_LABELS).map(([key, { label }]) => (
+            <button
+              key={key}
+              onClick={() => setCategory(key)}
+              className={`px-3 py-1.5 rounded-full text-sm ${category === key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -88,21 +89,21 @@ export default function ProductsPage() {
       ) : products.length === 0 ? (
         <div className="text-center py-12 text-gray-400">暂无商品</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {products.map((p) => (
             <Link key={p.id} href={`/products/${p.id}`}>
               <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
+                <CardHeader className="pb-1 pt-3 px-3">
+                  <div className="flex items-start justify-between gap-1">
                     <CardTitle className="text-base line-clamp-1">{p.title}</CardTitle>
-                    <Badge variant="secondary" className="ml-2 shrink-0">{CATEGORY_LABELS[p.category]?.label || p.category}</Badge>
+                    <Badge variant="secondary" className="shrink-0 text-xs px-1.5 py-0">{CATEGORY_LABELS[p.category]?.label || p.category}</Badge>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-500 line-clamp-2 mb-3">{p.description}</p>
+                <CardContent className="px-3 pb-3 pt-1">
+                  <p className="text-sm text-gray-500 line-clamp-2 mb-2">{p.description}</p>
                   <div className="flex items-center justify-between">
                     <span className="text-lg font-bold text-red-600">¥{p.price}</span>
-                    <span className="text-xs text-gray-400">{p.seller.dormitory || "未知位置"}</span>
+                    <span className="text-xs text-gray-400">{p.seller.dormitory || "未知"}</span>
                   </div>
                 </CardContent>
               </Card>

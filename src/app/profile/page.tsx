@@ -114,8 +114,8 @@ export default function ProfilePage() {
   if (loading || !profile) return <div className="container mx-auto px-4 py-12 text-center text-gray-400">加载中...</div>;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold">我的</h1>
+    <div className="container mx-auto px-4 py-5 max-w-3xl space-y-4">
+      <h1 className="text-xl font-bold">我的</h1>
 
       {/* 基本信息 */}
       <Card>
@@ -171,15 +171,15 @@ export default function ProfilePage() {
       </Card>
 
       {/* 快捷入口 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Link href="/orders"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">📦</div><div className="text-sm font-medium">我的订单</div></CardContent></Card></Link>
-        <Link href="/textbooks/my"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">📖</div><div className="text-sm font-medium">我的借阅</div></CardContent></Card></Link>
-        <Link href="/wallet"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">💰</div><div className="text-sm font-medium">钱包</div><div className="text-xs text-gray-400">¥{profile.wallet?.balance ?? 0}{profile.wallet?.frozen ? <span className="text-orange-500 ml-1">(冻结¥{profile.wallet.frozen})</span> : ""}</div></CardContent></Card></Link>
-        <Link href="/chats"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">💬</div><div className="text-sm font-medium">聊天</div></CardContent></Card></Link>
-        <Link href="/messages"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">🔔</div><div className="text-sm font-medium">消息通知</div></CardContent></Card></Link>
-        <Link href="/disputes"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">⚠️</div><div className="text-sm font-medium">投诉记录</div></CardContent></Card></Link>
-        <button onClick={() => setTab("favorites")} className="text-left"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">⭐</div><div className="text-sm font-medium">贴吧收藏</div></CardContent></Card></button>
-        <button onClick={() => setTab("productFav")} className="text-left"><Card className="hover:shadow-md cursor-pointer text-center py-4"><CardContent><div className="text-2xl mb-1">🛒</div><div className="text-sm font-medium">商品收藏</div></CardContent></Card></button>
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-2">
+        <Link href="/orders"><Card className="hover:shadow-md cursor-pointer text-center py-3"><CardContent className="p-2"><div className="text-2xl mb-1">📦</div><div className="text-sm font-medium">订单</div></CardContent></Card></Link>
+        <Link href="/textbooks/my"><Card className="hover:shadow-md cursor-pointer text-center py-3"><CardContent className="p-2"><div className="text-2xl mb-1">📖</div><div className="text-sm font-medium">借阅</div></CardContent></Card></Link>
+        <Link href="/wallet"><Card className="hover:shadow-md cursor-pointer text-center py-3"><CardContent className="p-2"><div className="text-2xl mb-1">💰</div><div className="text-sm font-medium">钱包</div><div className="text-xs text-gray-400">¥{profile.wallet?.balance ?? 0}</div></CardContent></Card></Link>
+        <Link href="/chats"><Card className="hover:shadow-md cursor-pointer text-center py-3"><CardContent className="p-2"><div className="text-2xl mb-1">💬</div><div className="text-sm font-medium">聊天</div></CardContent></Card></Link>
+        <Link href="/messages"><Card className="hover:shadow-md cursor-pointer text-center py-3"><CardContent className="p-2"><div className="text-2xl mb-1">🔔</div><div className="text-sm font-medium">通知</div></CardContent></Card></Link>
+        <Link href="/disputes"><Card className="hover:shadow-md cursor-pointer text-center py-3"><CardContent className="p-2"><div className="text-2xl mb-1">⚠️</div><div className="text-sm font-medium">投诉</div></CardContent></Card></Link>
+        <button onClick={() => setTab("favorites")} className="text-left"><Card className="hover:shadow-md cursor-pointer text-center py-3"><CardContent className="p-2"><div className="text-2xl mb-1">⭐</div><div className="text-sm font-medium">帖子</div></CardContent></Card></button>
+        <button onClick={() => setTab("productFav")} className="text-left"><Card className="hover:shadow-md cursor-pointer text-center py-3"><CardContent className="p-2"><div className="text-2xl mb-1">🛒</div><div className="text-sm font-medium">商品</div></CardContent></Card></button>
       </div>
 
       {/* 我的发布 */}

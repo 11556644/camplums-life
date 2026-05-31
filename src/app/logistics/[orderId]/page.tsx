@@ -80,7 +80,7 @@ export default function LogisticsPage() {
   const isLastNode = route.currentNode >= route.nodes.length - 1;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-xl">
+    <div className="container mx-auto px-4 py-5 max-w-xl">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

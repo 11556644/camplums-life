@@ -140,9 +140,9 @@ export default function CabinetsPage() {
   if (loading) return <div className="container mx-auto px-4 py-12 text-center text-gray-400">加载中...</div>;
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">智能柜</h1>
+    <div className="container mx-auto px-4 py-5">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold">智能柜</h1>
         <div className="flex gap-2">
           {user?.roles?.includes("admin") && (
             <Button variant="outline" size="sm" onClick={handleExpireCheck}>检查过期</Button>
@@ -151,8 +151,8 @@ export default function CabinetsPage() {
       </div>
 
       {/* 收费说明 */}
-      <Card className="mb-4 bg-blue-50/50 border-blue-100">
-        <CardContent className="py-3 text-xs text-gray-600">
+      <Card className="mb-3 bg-blue-50/50 border-blue-100">
+        <CardContent className="py-2 px-3 text-xs text-gray-600">
           <div className="flex flex-wrap gap-x-6 gap-y-1">
             <span className="font-medium text-gray-800">💰 收费标准：</span>
             <span>30分钟内 <b className="text-green-600">免费</b></span>

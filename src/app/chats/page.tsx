@@ -91,7 +91,7 @@ export default function ChatsPage() {
   if (!user) return null;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
+    <div className="container mx-auto px-4 py-5 max-w-2xl">
       <h1 className="text-2xl font-bold mb-4">聊天</h1>
 
       {/* 搜索用户发起新对话 */}

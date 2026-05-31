@@ -56,14 +56,14 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full glass-card border-b border-glass-border">
-      <div className="container mx-auto flex h-16 items-center px-4">
-        <Link href="/" className="mr-10 flex items-center space-x-2 group">
+      <div className="container mx-auto flex h-14 items-center px-4">
+        <Link href="/" className="mr-6 flex items-center space-x-2 group">
           <span className="text-xl font-extrabold tracking-tight text-creative-gradient group-hover:opacity-80 transition-opacity" style={{ fontFamily: 'var(--font-display)' }}>
             校园生活
           </span>
         </Link>
 
-        <nav className="hidden lg:flex items-center space-x-6 text-sm font-semibold tracking-tight">
+        <nav className="hidden lg:flex items-center space-x-5 text-sm font-semibold tracking-tight">
           <Link href="/products" className="text-muted-foreground hover:text-primary transition-colors">闲置市场</Link>
           <Link href="/tasks" className="text-muted-foreground hover:text-primary transition-colors">自由市场</Link>
           <Link href="/cabinets" className="text-muted-foreground hover:text-primary transition-colors">智能柜</Link>
@@ -71,7 +71,8 @@ export function Navbar() {
         </nav>
 
         <div className="ml-auto flex items-center space-x-3">
-          <Link href="/forum" className="text-sm font-semibold tracking-tight text-muted-foreground hover:text-primary transition-colors mr-2">校园贴吧</Link>
+          <Link href="/forum" className="text-sm font-semibold tracking-tight text-muted-foreground hover:text-primary transition-colors">校园贴吧</Link>
+          <div className="h-5 w-px bg-border" />
           {loading ? (
             <div className="h-8 w-16 animate-pulse rounded bg-gray-200" />
           ) : user ? (

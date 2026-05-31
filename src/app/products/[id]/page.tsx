@@ -146,7 +146,7 @@ export default function ProductDetailPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
+    <div className="container mx-auto px-4 py-5 max-w-4xl">
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between">
@@ -182,7 +182,7 @@ export default function ProductDetailPage() {
 
           <div className="text-3xl font-bold text-red-600">¥{product.price}</div>
           <p className="text-gray-600">{product.description}</p>
-          <div className="border-t pt-4 space-y-2 text-sm text-gray-500">
+          <div className="border-t pt-3 space-y-1.5 text-sm text-gray-500">
             <p>卖家：<Link href={`/user/${product.seller.id}`} className="text-blue-600 hover:underline">{product.seller.nickname}</Link></p>
             <p>院系：{product.seller.department || "未填写"}</p>
             <p>位置：{product.location || product.seller.dormitory || "未填写"}</p>

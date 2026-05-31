@@ -40,8 +40,8 @@ export default function DisputesPage() {
   const isAdmin = user.roles.includes("admin");
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-2xl font-bold mb-6">投诉记录</h1>
+    <div className="container mx-auto px-4 py-5 max-w-3xl">
+      <h1 className="text-xl font-bold mb-4">投诉记录</h1>
 
       {isAdmin && (
         <div className="flex gap-2 mb-4">

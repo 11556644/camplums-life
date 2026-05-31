@@ -42,7 +42,7 @@ export default function TextbookDetailPage() {
   if (!tb) return <div className="container mx-auto px-12 text-center text-gray-400">教材不存在</div>;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
+    <div className="container mx-auto px-4 py-5 max-w-3xl space-y-4">
       {/* 基本信息 */}
       <Card>
         <CardHeader>

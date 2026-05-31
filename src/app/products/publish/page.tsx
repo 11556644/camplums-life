@@ -65,7 +65,7 @@ export default function PublishProductPage() {
   if (!user) return <div className="container mx-auto px-4 py-12 text-center"><Button onClick={() => router.push("/login")}>请先登录</Button></div>;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-lg">
+    <div className="container mx-auto px-4 py-5 max-w-lg">
       <Card>
         <CardHeader>
           <CardTitle>发布闲置商品</CardTitle>

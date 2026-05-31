@@ -89,7 +89,7 @@ export default function MessagesPage() {
   const filtered = filter === "all" ? messages : messages.filter(m => m.type === filter);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
+    <div className="container mx-auto px-4 py-5 max-w-2xl">
       <h1 className="text-2xl font-bold mb-4">消息中心</h1>
 
       <div className="flex gap-2 mb-4 flex-wrap">

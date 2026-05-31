@@ -74,9 +74,9 @@ export default function ForumPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-5">
         <div className="h-8 w-40 bg-gray-200 rounded animate-pulse mb-6" />
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-32 bg-gray-200 rounded-lg animate-pulse" />
           ))}
@@ -91,10 +91,10 @@ export default function ForumPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-5">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">校园贴吧</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold">校园贴吧</h1>
         <Link href="/forum/post">
           <Button>
             <PenSquare className="w-4 h-4 mr-1" />
@@ -104,7 +104,7 @@ export default function ForumPage() {
       </div>
 
       {/* Board Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
         {boards.map((board) => (
           <Link key={board.id} href={`/forum/${board.id}`}>
             <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">

@@ -112,7 +112,7 @@ export default function OrderDetailPage() {
   const orderStatus = order.status as string;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
+    <div className="container mx-auto px-4 py-5 max-w-2xl">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

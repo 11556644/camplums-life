@@ -181,7 +181,7 @@ export default function TaskDetailPage() {
   const supplierDone = Boolean(task.supplierDoneAt);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
+    <div className="container mx-auto px-4 py-5 max-w-3xl">
       {/* 任务信息 */}
       <Card>
         <CardHeader>

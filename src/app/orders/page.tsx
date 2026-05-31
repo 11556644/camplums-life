@@ -187,10 +187,10 @@ export default function OrdersPage() {
   if (!user) return null;
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">我的订单</h1>
+    <div className="container mx-auto px-4 py-5">
+      <h1 className="text-xl font-bold mb-4">我的订单</h1>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-4">
         <button
           onClick={() => setRole("buyer")}
           className={`px-4 py-2 rounded-lg text-sm font-medium ${role === "buyer" ? "bg-blue-600 text-white" : "bg-gray-100"}`}
@@ -216,13 +216,13 @@ export default function OrdersPage() {
       ) : orders.length === 0 ? (
         <div className="text-center py-12 text-gray-400">暂无订单</div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {orders.map((order) => {
             const statusInfo = ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-gray-100" };
             const typeInfo = ORDER_TYPE_LABELS[order.orderType] || { label: order.orderType, color: "bg-gray-100" };
             return (
               <Card key={order.id}>
-                <CardHeader className="pb-2">
+                <CardHeader className="pb-2 pt-3 px-4">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm text-gray-500">订单号：{order.orderNo}</CardTitle>
                     <div className="flex gap-1">
@@ -231,8 +231,8 @@ export default function OrdersPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
+                <CardContent className="px-4 pb-3">
+                  <div className="space-y-1.5">
                     {order.items.map((item) => (
                       <div key={item.id} className="flex justify-between text-sm">
                         <span>{item.product?.title || item.task?.title || "未知商品"}</span>
@@ -240,9 +240,9 @@ export default function OrdersPage() {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 flex items-center justify-between">
-                    <span className="text-lg font-bold text-red-600">合计：¥{order.totalAmount}</span>
-                    <div className="space-x-2">
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-lg font-bold text-red-600">¥{order.totalAmount}</span>
+                    <div className="flex flex-wrap gap-1.5 justify-end">
                       {order.status === "pending_payment" && role === "buyer" && (
                         <>
                           {payingOrderId === order.id ? (

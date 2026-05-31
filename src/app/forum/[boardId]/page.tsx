@@ -172,7 +172,7 @@ export default function BoardPage() {
   );
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-5">
       {/* Board Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">

@@ -45,7 +45,7 @@ export default function UserProfilePage() {
   if (!info) return <div className="container mx-auto px-4 py-12 text-center text-gray-400">用户不存在</div>;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl space-y-6">
+    <div className="container mx-auto px-4 py-5 max-w-2xl space-y-4">
       {/* 用户卡片 */}
       <Card>
         <CardContent className="pt-6">

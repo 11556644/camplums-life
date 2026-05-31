@@ -365,7 +365,7 @@ export default function PostDetailPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
+      <div className="container mx-auto px-4 py-5 max-w-3xl">
         <div className="space-y-4">
           <div className="h-8 w-3/4 bg-gray-200 rounded animate-pulse" />
           <div className="h-4 w-1/3 bg-gray-200 rounded animate-pulse" />
@@ -393,7 +393,7 @@ export default function PostDetailPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
+    <div className="container mx-auto px-4 py-5 max-w-3xl">
       {/* Back */}
       <Link
         href={`/forum/${boardId}`}
