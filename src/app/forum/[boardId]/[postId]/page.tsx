@@ -39,7 +39,7 @@ interface Post {
   id: string;
   title: string;
   content: string;
-  images: string | null;
+  images: string[];
   isAnonymous: boolean;
   viewCount: number;
   likeCount: number;
@@ -383,14 +383,7 @@ export default function PostDetailPage() {
     );
   }
 
-  let images: string[] = [];
-  if (post.images) {
-    try {
-      images = JSON.parse(post.images);
-    } catch {
-      images = [];
-    }
-  }
+  const images = post.images ?? [];
 
   return (
     <div className="container mx-auto px-4 py-5 max-w-3xl">
