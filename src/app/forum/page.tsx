@@ -29,6 +29,7 @@ interface Post {
   id: string;
   title: string;
   content: string;
+  images: string[];
   isAnonymous: boolean;
   isPinned: boolean;
   isTop: boolean;
@@ -164,6 +165,23 @@ export default function ForumPage() {
                         {post.content.slice(0, 100)}
                         {post.content.length > 100 ? "..." : ""}
                       </p>
+                      {post.images && post.images.length > 0 && (
+                        <div className="flex gap-1 mb-2">
+                          {post.images.slice(0, 3).map((url, i) => (
+                            <img
+                              key={i}
+                              src={url}
+                              alt=""
+                              className="w-12 h-12 rounded object-cover border"
+                            />
+                          ))}
+                          {post.images.length > 3 && (
+                            <span className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+                              +{post.images.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
                         <span>
                           {post.isAnonymous ? "匿名用户" : post.author.nickname}
