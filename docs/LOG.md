@@ -23,7 +23,7 @@
 
 **时间**: 2026-05-22
 **决策**: Next.js 15 + TypeScript + PostgreSQL 16/Prisma + Tailwind/shadcn/ui
-**详情**: 见 docs/DECISIONS.md
+**详情**: 技术选型已在本文件记录
 
 ### [产出] 执行计划
 
@@ -52,7 +52,7 @@
 **时间**: 2026-05-22
 **产出**:
 - Next.js 15 + TypeScript + Tailwind + shadcn/ui 项目骨架
-- Prisma Schema 38 张表（PostgreSQL）— 含论坛5表、钱包2表、物流2表、商品收藏1表、信用历史1表
+- Prisma Schema 36 张表（PostgreSQL）— 含论坛5表、钱包2表、物流2表、商品收藏1表、信用历史1表
 - 种子数据：1 所学校、5 个用户、2 台智能柜 20 个柜格、25 本书籍（15教材+10课外）、3 个订阅套餐、5 个商品、5 个任务、5 个论坛板块 4 篇帖子
 - 用户注册/登录 API + JWT 认证
 - Logger + AuditLog + EventLog 模块
@@ -97,8 +97,8 @@
 
 **时间**: 2026-05-22 ~ 2026-05-29
 **总产出**:
-- 38 张数据库表（Prisma + PostgreSQL）— 含论坛5表、钱包2表、物流2表、商品收藏1表、信用历史1表
-- 64 个 API 路由（认证、商品、订单、智能柜、书籍借阅、任务、消息、钱包、论坛、管理后台）
+- 36 张数据库表（Prisma + PostgreSQL）— 含论坛5表、钱包2表、物流2表、商品收藏1表、信用历史1表
+- 65 个 API 路由（认证、商品、订单、智能柜、书籍借阅、任务、消息、钱包、论坛、管理后台）
 - 28 个页面（首页、登录、注册、商品、订单、智能柜、任务、书籍中心、论坛、钱包、个人中心、管理后台等）
 - 种子数据（5 用户、2 柜机 20 柜格、25 本书籍、5 商品、5 任务、3 套餐、5 论坛板块）
 - 订单状态机（4 种订单类型，完整状态迁移规则）
@@ -195,7 +195,7 @@
 - 表数量：34 → 38（新增 CreditScoreHistory、Wallet、WalletTransaction、LogisticsRoute、LogisticsNode、ForumBoard/Post/Comment/Like/Favorite、ProductFavorite）
 - API 路由数：57 → 64
 - 路由总数：85+ → 92+
-- PLAN.md 实体关系图补全所有 38 张表
+- PLAN.md 实体关系图补全所有 36 张表
 - PLAN.md 关键表清单补全 12 张缺失表
 
 ### [功能] 商品交收方式选择 + 智能柜集成

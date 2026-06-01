@@ -90,7 +90,7 @@ async function main() {
         const dest = path.join(PG_DIR, item);
         if (!fs.existsSync(dest)) fs.renameSync(src, dest);
       }
-      fs.rmdirSync(extractedDir, { recursive: true });
+      fs.rmSync(extractedDir, { recursive: true, force: true });
     }
 
     // zip 里 bin 在 bin/ 子目录
