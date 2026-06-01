@@ -135,12 +135,12 @@ export async function onOrderCompleted({ tx, order, userId }: SettleContext) {
     }
   }
 
-  // 任务完成：更新任务状态
+  // 任务完成：从 OrderItem 获取关联的 taskId
   if (order.orderType === "task") {
-    await tx.task.updateMany({
-      where: { id: order.taskId || undefined },
-      data: { status: "completed" },
-    });
+    const taskItem = await tx.orderItem.findFirst({ where: { orderId: order.id, taskId: { not: null } } });
+    if (taskItem?.taskId) {
+      await tx.task.update({ where: { id: taskItem.taskId }, data: { status: "completed" } });
+    }
   }
 
   // 卖家结算（扣除佣金）
