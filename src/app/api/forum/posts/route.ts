@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/api-helpers";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { broadcastEvent } from "@/lib/realtime";
 import { buildSearchFilter, sortByRelevance } from "@/lib/search";
@@ -67,69 +68,62 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   const body = await req.json();
   const parsed = createPostSchema.safeParse(body);
   if (!parsed.success) return apiError(parsed.error.issues[0].message);
 
-  try {
-    const user = await db.user.findUnique({
-      where: { id: session.userId },
-      select: { schoolId: true },
-    });
-    if (!user) return apiError("用户不存在", 404);
+  const user = await db.user.findUnique({
+    where: { id: session.userId },
+    select: { schoolId: true },
+  });
+  if (!user) return apiError("用户不存在", 404);
 
-    const board = await db.forumBoard.findUnique({
+  const board = await db.forumBoard.findUnique({
+    where: { id: parsed.data.boardId },
+  });
+  if (!board) return apiError("板块不存在", 404);
+  if (board.schoolId !== user.schoolId) return apiError("无权在此板块发帖");
+
+  const post = await db.$transaction(async (tx) => {
+    const newPost = await tx.forumPost.create({
+      data: {
+        schoolId: user.schoolId,
+        boardId: parsed.data.boardId,
+        authorId: session.userId,
+        title: parsed.data.title,
+        content: parsed.data.content,
+        images: parsed.data.images?.length
+          ? JSON.stringify(parsed.data.images)
+          : null,
+        isAnonymous: parsed.data.isAnonymous,
+      },
+      include: {
+        author: {
+          select: { id: true, nickname: true, avatar: true, department: true },
+        },
+        board: { select: { id: true, name: true } },
+      },
+    });
+
+    await tx.forumBoard.update({
       where: { id: parsed.data.boardId },
-    });
-    if (!board) return apiError("板块不存在", 404);
-    if (board.schoolId !== user.schoolId) return apiError("无权在此板块发帖");
-
-    const post = await db.$transaction(async (tx) => {
-      const newPost = await tx.forumPost.create({
-        data: {
-          schoolId: user.schoolId,
-          boardId: parsed.data.boardId,
-          authorId: session.userId,
-          title: parsed.data.title,
-          content: parsed.data.content,
-          images: parsed.data.images?.length
-            ? JSON.stringify(parsed.data.images)
-            : null,
-          isAnonymous: parsed.data.isAnonymous,
-        },
-        include: {
-          author: {
-            select: { id: true, nickname: true, avatar: true, department: true },
-          },
-          board: { select: { id: true, name: true } },
-        },
-      });
-
-      await tx.forumBoard.update({
-        where: { id: parsed.data.boardId },
-        data: { postCount: { increment: 1 } },
-      });
-
-      return newPost;
+      data: { postCount: { increment: 1 } },
     });
 
-    broadcastEvent({
-      type: "forum",
-      action: "new_post",
-      targetId: post.id,
-      userId: session.userId,
-      data: { title: post.title, boardId: post.boardId },
-    });
+    return newPost;
+  });
 
-    return apiSuccess({
-      ...post,
-      images: post.images ? JSON.parse(post.images) : [],
-    });
-  } catch {
-    return apiError("发帖失败", 500);
-  }
-}
+  broadcastEvent({
+    type: "forum",
+    action: "new_post",
+    targetId: post.id,
+    userId: session.userId,
+    data: { title: post.title, boardId: post.boardId },
+  });
+
+  return apiSuccess({
+    ...post,
+    images: post.images ? JSON.parse(post.images) : [],
+  });
+});

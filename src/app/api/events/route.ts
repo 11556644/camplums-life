@@ -1,13 +1,10 @@
-import { getSession } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-helpers";
 import { eventBus, RealtimeEvent } from "@/lib/realtime";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const session = await getSession();
-  if (!session) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  const session = await requireAuth(req);
 
   const userId = session.userId;
   const encoder = new TextEncoder();

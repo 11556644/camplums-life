@@ -1,12 +1,9 @@
 export const dynamic = "force-dynamic";
+import { withAuth } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
 
-export async function GET() {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const GET = withAuth(async (_req, session) => {
   try {
     const favorites = await db.productFavorite.findMany({
       where: { userId: session.userId },
@@ -39,4 +36,4 @@ export async function GET() {
   } catch {
     return apiError("获取收藏列表失败", 500);
   }
-}
+});

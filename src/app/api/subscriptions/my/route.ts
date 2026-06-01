@@ -1,35 +1,25 @@
 export const dynamic = "force-dynamic";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 
 // 获取当前用户的订阅列表
-export async function GET() {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
+export const GET = withAuth(async (req, session) => {
+  const subscriptions = await db.subscriptionOrder.findMany({
+    where: { userId: session.userId },
+    include: {
+      plan: true,
+      order: { select: { id: true, orderNo: true, status: true, totalAmount: true, deposit: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
-  try {
-    const subscriptions = await db.subscriptionOrder.findMany({
-      where: { userId: session.userId },
-      include: {
-        plan: true,
-        order: { select: { id: true, orderNo: true, status: true, totalAmount: true, deposit: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return apiSuccess(subscriptions);
-  } catch {
-    return apiError("获取订阅信息失败", 500);
-  }
-}
+  return apiSuccess(subscriptions);
+});
 
 // 取消订阅
-export async function PATCH(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const PATCH = withAuth(async (req, session) => {
   const body = await req.json();
   const { subscriptionId, action } = body; // action: cancel
 
@@ -87,4 +77,4 @@ export async function PATCH(req: Request) {
   });
 
   return apiSuccess({ message: "订阅已取消，押金已退还" });
-}
+});

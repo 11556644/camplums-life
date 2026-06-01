@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
 import { useAuthStore } from "@/stores/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
+import { TextbookCard } from "@/components/textbook-card";
 
 interface Textbook {
   id: string;
@@ -48,10 +51,6 @@ interface Plan {
 export default function TextbooksPage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const [textbooks, setTextbooks] = useState<Textbook[]>([]);
-  const [cabinets, setCabinets] = useState<Cabinet[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [selected, setSelected] = useState<Record<string, number>>({});
@@ -72,27 +71,20 @@ export default function TextbooksPage() {
     { days: 365, label: "1学年", multiplier: 1.6 },
   ];
 
-  const fetchData = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    const tbUrl = searchQuery ? `/api/textbooks?q=${encodeURIComponent(searchQuery)}` : "/api/textbooks";
-    const [tbRes, cabRes, planRes] = await Promise.all([
-      fetch(tbUrl),
-      fetch("/api/cabinets"),
-      fetch("/api/subscriptions"),
-    ]);
-    const [tbData, cabData, planData] = await Promise.all([tbRes.json(), cabRes.json(), planRes.json()]);
-    if (tbData.success) setTextbooks(tbData.data);
-    if (cabData.success) setCabinets(cabData.data);
-    if (planData.success) setPlans(planData.data);
-    if (!silent) setLoading(false);
-  }, [searchQuery]);
+  const tbUrl = searchQuery ? `/api/textbooks?q=${encodeURIComponent(searchQuery)}` : "/api/textbooks";
+  const { data: tbRes, mutate: mutateTextbooks } = useSWR<{ success: boolean; data: Textbook[] }>(tbUrl, fetcher, { revalidateOnFocus: false });
+  const { data: cabRes } = useSWR<{ success: boolean; data: Cabinet[] }>("/api/cabinets", fetcher, { revalidateOnFocus: false });
+  const { data: planRes } = useSWR<{ success: boolean; data: Plan[] }>("/api/subscriptions", fetcher, { revalidateOnFocus: false });
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const textbooks = tbRes?.data ?? [];
+  const cabinets = cabRes?.data ?? [];
+  const plans = planRes?.data ?? [];
+  const loading = !tbRes;
 
-  // SSE：教材借还时静默刷新
+  // SSE: 教材借还时静默刷新
   const handleRealtime = useCallback((event: RealtimeEvent) => {
-    if (event.type === "textbook") fetchData(true);
-  }, [fetchData]);
+    if (event.type === "textbook") mutateTextbooks();
+  }, [mutateTextbooks]);
   useRealtime(handleRealtime, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -272,37 +264,16 @@ export default function TextbooksPage() {
         <h2 className="text-lg font-semibold mb-1">{tab === "textbook" ? "选择教材" : "经典读物"}</h2>
         <p className="text-xs text-gray-400 mb-4">租期{rentalDays}天 · 按书定价 · 逾期 ¥2/天</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {textbooks.filter(tb => tab === "textbook" ? tb.course : !tb.course).map((tb) => {
-            const isSelected = !!selected[tb.id];
-            const canSelect = tb.availableCount > 0;
-            return (
-              <Card
-                key={tb.id}
-                className={`cursor-pointer transition-all ${isSelected ? "ring-2 ring-blue-500 bg-blue-50" : canSelect ? "hover:shadow-md" : "opacity-50"}`}
-                onClick={() => canSelect && toggleSelect(tb.id)}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-sm line-clamp-1">{tb.title}</CardTitle>
-                    <div className="flex gap-1">
-                      {tb.isRequired && <Badge className="shrink-0">必修</Badge>}
-                      {isSelected && <Badge className="bg-blue-500 shrink-0">已选</Badge>}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="text-sm text-gray-600 space-y-1">
-                  <p>{tb.author} · {tb.publisher}</p>
-                  {tb.course && <p>课程：{tb.course}</p>}
-                  <div className="flex items-center justify-between mt-2">
-                    <span className={`text-xs px-2 py-0.5 rounded ${tb.availableCount > 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                      库存 {tb.availableCount}/{tb.totalCount}
-                    </span>
-                    <span className="font-bold text-blue-600">¥{getBookPrice(tb)}<span className="text-xs text-gray-400 font-normal">/{rentalDays}天</span></span>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {textbooks.filter(tb => tab === "textbook" ? tb.course : !tb.course).map((tb) => (
+            <TextbookCard
+              key={tb.id}
+              textbook={tb}
+              isSelected={!!selected[tb.id]}
+              price={getBookPrice(tb)}
+              rentalDays={rentalDays}
+              onToggle={toggleSelect}
+            />
+          ))}
         </div>
       </div>
 

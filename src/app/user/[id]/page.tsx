@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChatBox } from "@/components/chat-box";
+import { ChatBox } from "@/components/chat/chat-box";
 
 const ROLE_LABELS: Record<string, string> = {
   buyer: "买家", seller: "卖家", floor_leader: "楼长",

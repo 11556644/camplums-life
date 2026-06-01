@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { OrderChat } from "@/components/order-chat";
+import { OrderChat } from "@/components/chat/order-chat";
 import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 import { ORDER_STATUS_LABELS } from "@/lib/constants";
 

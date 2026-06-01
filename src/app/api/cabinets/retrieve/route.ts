@@ -1,19 +1,18 @@
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/api-helpers";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { canTransition, ORDER_STATUS } from "@/lib/order-state-machine";
 import { broadcastEvent } from "@/lib/realtime";
+import { cabinetRetrieveSchema } from "@/lib/schemas";
 
 // 取件
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   const body = await req.json();
-  const { pickupCode, reject } = body; // reject=true 表示拒收
+  const parsed = cabinetRetrieveSchema.safeParse(body);
+  if (!parsed.success) return apiError(parsed.error.issues[0].message);
 
-  if (!pickupCode) return apiError("请输入取件码");
+  const { pickupCode, reject } = parsed.data;
 
   const binding = await db.cabinetSlotOrder.findUnique({
     where: { pickupCode },
@@ -114,4 +113,4 @@ export async function POST(req: Request) {
   broadcastEvent({ type: "cabinet", action: "retrieved", targetId: binding.slotId, userId: session.userId });
 
   return apiSuccess({ message: reject ? "已拒收" : "取件成功" });
-}
+});

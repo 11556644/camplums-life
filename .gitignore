@@ -58,3 +58,4 @@ prisma/dev.db-journal
 屏幕截图*.png
 屏幕截图*.jpg
 .claude/
+.omx/

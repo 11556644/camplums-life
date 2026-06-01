@@ -1,16 +1,12 @@
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireAdmin } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { canTransition } from "@/lib/order-state-machine";
 import { onOrderCompleted, onOrderCancelled } from "@/lib/settlement";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
-  const isAdmin = await db.userRole.findFirst({ where: { userId: session.userId, role: "admin" } });
-  if (!isAdmin) return apiError("无权限", 403);
+  const session = await requireAdmin(req);
 
   const { id } = await params;
   const body = await req.json();

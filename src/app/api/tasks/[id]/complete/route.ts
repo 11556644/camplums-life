@@ -1,20 +1,20 @@
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { canTransition, ORDER_STATUS } from "@/lib/order-state-machine";
 import { onOrderCompleted } from "@/lib/settlement";
 import { broadcastEvent } from "@/lib/realtime";
+import { taskCompleteSchema } from "@/lib/schemas";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+  const session = await requireAuth(req);
   const { id } = await params;
   const body = await req.json();
-  const { orderId, supplierDone } = body;
+  const parsed = taskCompleteSchema.safeParse(body);
+  if (!parsed.success) return apiError(parsed.error.issues[0].message);
 
-  if (!orderId) return apiError("缺少订单ID");
+  const { orderId, supplierDone } = parsed.data;
 
   const order = await db.order.findUnique({ where: { id: orderId } });
   if (!order) return apiError("订单不存在", 404);
@@ -60,7 +60,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return apiSuccess({ message: "已标记服务完成，等待发布者确认" });
   }
 
-  // ========== 路径 B：发布者确认完成（原有逻辑） ==========
+  // ========== 路径 B：发布者确认完成 ==========
   if (order.buyerId !== session.userId) {
     return apiError("只有任务发布者可以确认完成");
   }
@@ -69,7 +69,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return apiError(`订单状态不允许完成（当前：${order.status}）`);
   }
 
-  // 加上 taskId 供 settlement 使用
   const orderWithTask = { ...order, taskId: id };
 
   await db.$transaction(async (tx: any) => {
@@ -83,7 +82,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       data: { status: "completed" },
     });
 
-    // 统一结算：佣金扣除、信用分、通知双方
     await onOrderCompleted({ tx, order: orderWithTask, userId: session.userId });
   });
 

@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
+import { withAuth } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { getCreditPermissions } from "@/lib/credit";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
@@ -18,10 +18,7 @@ const schema = z.object({
   faceToFaceDelivery: z.boolean().default(true),
 }).refine(d => d.cabinetDelivery || d.faceToFaceDelivery, { message: "至少选择一种交收方式" });
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) return apiError(parsed.error.issues[0].message);
@@ -68,4 +65,4 @@ export async function POST(req: Request) {
   });
 
   return apiSuccess(product);
-}
+});

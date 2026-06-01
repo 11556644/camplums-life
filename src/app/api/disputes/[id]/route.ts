@@ -1,13 +1,12 @@
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-helpers";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { changeCredit } from "@/lib/credit";
 
 // 获取投诉详情
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
+  const session = await requireAuth(req);
 
   const { id } = await params;
 
@@ -37,8 +36,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 // 处理投诉（管理员仲裁）
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
+  const session = await requireAuth(req);
 
   const isAdmin = await db.userRole.findFirst({ where: { userId: session.userId, role: "admin" } });
   if (!isAdmin) return apiError("仅管理员可处理投诉", 403);

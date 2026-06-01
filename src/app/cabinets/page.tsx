@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { CabinetQRScanner, PickupCodeDisplay } from "@/components/cabinet-qr";
+import { CabinetQRScanner, PickupCodeDisplay } from "@/components/cabinet/cabinet-qr";
 import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 const SLOT_STATUS: Record<string, { label: string; color: string }> = {

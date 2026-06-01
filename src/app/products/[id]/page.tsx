@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/stores/auth";
 import { toast } from "sonner";
-import { ChatButton } from "@/components/chat-box";
+import { ChatButton } from "@/components/chat/chat-box";
 
 const TRADE_DURATION_OPTIONS = [
   { minutes: 30, label: "30分钟", sellerPays: 0, buyerPays: 0, description: "免费" },

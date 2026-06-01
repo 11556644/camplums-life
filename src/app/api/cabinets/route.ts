@@ -1,40 +1,31 @@
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/api-helpers";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { broadcastEvent } from "@/lib/realtime";
+import { cabinetDepositSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
 // 获取所有柜机
-export async function GET() {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
-  try {
-    const cabinets = await db.cabinet.findMany({
-      where: { schoolId: session.schoolId },
-      include: {
-        slots: { orderBy: { slotNumber: "asc" } },
-      },
-      orderBy: { name: "asc" },
-    });
-    return apiSuccess(cabinets);
-  } catch {
-    return apiError("获取柜机列表失败", 500);
-  }
-}
+export const GET = withAuth(async (req, session) => {
+  const cabinets = await db.cabinet.findMany({
+    where: { schoolId: session.schoolId },
+    include: {
+      slots: { orderBy: { slotNumber: "asc" } },
+    },
+    orderBy: { name: "asc" },
+  });
+  return apiSuccess(cabinets);
+});
 
 // 存入物品到柜格（交易寄存 或 付费寄存）
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   const body = await req.json();
-  const { slotId, orderId, depositType, photo, durationMinutes } = body;
+  const parsed = cabinetDepositSchema.safeParse(body);
+  if (!parsed.success) return apiError(parsed.error.issues[0].message);
 
-  if (!slotId || !depositType) return apiError("缺少必要参数");
-  if (!["trade", "storage"].includes(depositType)) return apiError("寄存类型无效");
+  const { slotId, orderId, depositType, photo, durationMinutes } = parsed.data;
 
   // 计算存储费用
   const { calculateCabinetFee, CABINET_PRICING } = await import("@/lib/pricing");
@@ -126,4 +117,4 @@ export async function POST(req: Request) {
   broadcastEvent({ type: "cabinet", action: "deposited", targetId: slotId, userId: session.userId });
 
   return apiSuccess({ ...result, pickupCode });
-}
+});

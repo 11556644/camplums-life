@@ -54,58 +54,59 @@ export async function POST(req: Request) {
     results.orderCancelError = String(e);
   }
 
-  // ===== 2. 任务过期处理 =====
+  // ===== 2. 任务过期处理（单次查询合并两种条件）=====
   try {
-    const PAYMENT_TIMEOUT = 30 * 60 * 1000;
-    const CONFIRM_TIMEOUT = 30 * 60 * 1000;
+    const TASK_TIMEOUT = 30 * 60 * 1000;
+    const timeoutDate = new Date(now.getTime() - TASK_TIMEOUT);
 
-    // Case A: assigned + 超时未支付 → 取消
-    const pendingTasks = await db.task.findMany({
-      where: { status: "assigned", acceptedAt: { not: null, lt: new Date(now.getTime() - PAYMENT_TIMEOUT) } },
+    const expiredTasks = await db.task.findMany({
+      where: {
+        OR: [
+          { status: "assigned", acceptedAt: { not: null, lt: timeoutDate } },
+          { status: "in_progress", supplierDoneAt: { not: null, lt: timeoutDate } },
+        ],
+      },
       include: { orderItems: { include: { order: true } } },
     });
 
     let taskCancelled = 0;
-    for (const task of pendingTasks) {
-      const pendingOrder = task.orderItems.find((i: any) => i.order.status === ORDER_STATUS.PENDING_PAYMENT)?.order;
-      if (!pendingOrder) continue;
-      try {
-        await db.$transaction(async (tx: any) => {
-          if (!canTransition(pendingOrder.orderType, pendingOrder.status, ORDER_STATUS.CANCELLED)) return;
-          const prevStatus = pendingOrder.status;
-          await tx.order.update({ where: { id: pendingOrder.id }, data: { status: ORDER_STATUS.CANCELLED, cancelledAt: now } });
-          await tx.task.update({ where: { id: task.id }, data: { status: "open", assigneeId: null, acceptedAt: null, executionDeadline: null } });
-          await onOrderCancelled({ tx, order: pendingOrder, userId: task.publisherId, prevStatus });
-        });
-        taskCancelled++;
-      } catch (e) {
-        logger.error("Task auto-cancel failed", { taskId: task.id, error: String(e) });
+    let taskCompleted = 0;
+
+    for (const task of expiredTasks) {
+      if (task.status === "assigned") {
+        // Case A: assigned + 超时未支付 → 取消
+        const pendingOrder = task.orderItems.find((i: any) => i.order.status === ORDER_STATUS.PENDING_PAYMENT)?.order;
+        if (!pendingOrder) continue;
+        try {
+          await db.$transaction(async (tx: any) => {
+            if (!canTransition(pendingOrder.orderType, pendingOrder.status, ORDER_STATUS.CANCELLED)) return;
+            const prevStatus = pendingOrder.status;
+            await tx.order.update({ where: { id: pendingOrder.id }, data: { status: ORDER_STATUS.CANCELLED, cancelledAt: now } });
+            await tx.task.update({ where: { id: task.id }, data: { status: "open", assigneeId: null, acceptedAt: null, executionDeadline: null } });
+            await onOrderCancelled({ tx, order: pendingOrder, userId: task.publisherId, prevStatus });
+          });
+          taskCancelled++;
+        } catch (e) {
+          logger.error("Task auto-cancel failed", { taskId: task.id, error: String(e) });
+        }
+      } else if (task.status === "in_progress") {
+        // Case B: supplierDoneAt + 30 分钟未确认 → 自动完成
+        const activeOrder = task.orderItems.find((i: any) => !["cancelled", "completed"].includes(i.order.status))?.order;
+        if (!activeOrder) continue;
+        try {
+          await db.$transaction(async (tx: any) => {
+            if (!canTransition(activeOrder.orderType, activeOrder.status, ORDER_STATUS.COMPLETED)) return;
+            await tx.task.update({ where: { id: task.id }, data: { status: "completed" } });
+            await tx.order.update({ where: { id: activeOrder.id }, data: { status: ORDER_STATUS.COMPLETED, completedAt: now } });
+            await onOrderCompleted({ tx, order: activeOrder, userId: task.publisherId });
+          });
+          taskCompleted++;
+        } catch (e) {
+          logger.error("Task auto-complete failed", { taskId: task.id, error: String(e) });
+        }
       }
     }
     results.taskCancelled = taskCancelled;
-
-    // Case B: supplierDoneAt + 30 分钟未确认 → 自动完成
-    const supplierDoneTasks = await db.task.findMany({
-      where: { status: "in_progress", supplierDoneAt: { not: null, lt: new Date(now.getTime() - CONFIRM_TIMEOUT) } },
-      include: { orderItems: { include: { order: true } } },
-    });
-
-    let taskCompleted = 0;
-    for (const task of supplierDoneTasks) {
-      const activeOrder = task.orderItems.find((i: any) => !["cancelled", "completed"].includes(i.order.status))?.order;
-      if (!activeOrder) continue;
-      try {
-        await db.$transaction(async (tx: any) => {
-          if (!canTransition(activeOrder.orderType, activeOrder.status, ORDER_STATUS.COMPLETED)) return;
-          await tx.task.update({ where: { id: task.id }, data: { status: "completed" } });
-          await tx.order.update({ where: { id: activeOrder.id }, data: { status: ORDER_STATUS.COMPLETED, completedAt: now } });
-          await onOrderCompleted({ tx, order: activeOrder, userId: task.publisherId });
-        });
-        taskCompleted++;
-      } catch (e) {
-        logger.error("Task auto-complete failed", { taskId: task.id, error: String(e) });
-      }
-    }
     results.taskCompleted = taskCompleted;
   } catch (e) {
     results.taskExpireError = String(e);

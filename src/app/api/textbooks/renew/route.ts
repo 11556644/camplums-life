@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
+import { withAuth } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { textbookRenewSchema } from "@/lib/schemas";
 
 const RENEW_PRICES: Record<number, number> = {
   30: 0.3,   // 续借1个月 = 基准价30%
@@ -10,14 +11,12 @@ const RENEW_PRICES: Record<number, number> = {
   120: 0.85, // 续借标准学期 = 基准价85%
 };
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   const body = await req.json();
-  const { copyId, extendDays = 30 } = body;
-  if (!copyId) return apiError("缺少副本ID");
-  if (![30, 90, 120].includes(extendDays)) return apiError("续借时长仅支持30/90/120天");
+  const parsed = textbookRenewSchema.safeParse(body);
+  if (!parsed.success) return apiError(parsed.error.issues[0].message);
+
+  const { copyId, extendDays } = parsed.data;
 
   const copy = await db.textbookCopy.findUnique({
     where: { id: copyId },
@@ -97,4 +96,4 @@ export async function POST(req: Request) {
     newDueDate,
     extendDays,
   });
-}
+});

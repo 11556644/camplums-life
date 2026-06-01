@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PhotoUpload } from "@/components/photo-upload";
+import { PhotoUpload } from "@/components/upload/photo-upload";
 import { useAuthStore } from "@/stores/auth";
 import { toast } from "sonner";
 import { Send, ArrowLeft } from "lucide-react";

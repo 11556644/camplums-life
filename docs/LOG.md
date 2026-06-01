@@ -52,7 +52,7 @@
 **时间**: 2026-05-22
 **产出**:
 - Next.js 15 + TypeScript + Tailwind + shadcn/ui 项目骨架
-- Prisma Schema 34 张表（PostgreSQL）— 含论坛5表、钱包2表、物流2表、商品收藏1表
+- Prisma Schema 38 张表（PostgreSQL）— 含论坛5表、钱包2表、物流2表、商品收藏1表、信用历史1表
 - 种子数据：1 所学校、5 个用户、2 台智能柜 20 个柜格、25 本书籍（15教材+10课外）、3 个订阅套餐、5 个商品、5 个任务、5 个论坛板块 4 篇帖子
 - 用户注册/登录 API + JWT 认证
 - Logger + AuditLog + EventLog 模块
@@ -91,14 +91,14 @@
 **启动方式**: `npm run dev`
 **访问地址**: http://localhost:3000
 **测试账号**: 13800000001-005（密码 123456）
-**路由总数**: 85+ 个（57 API + 28 页面）
+**路由总数**: 92+ 个（64 API + 28 页面）
 
 ### [完成] 全部 Phase 1-5 + 后续功能迭代
 
 **时间**: 2026-05-22 ~ 2026-05-29
 **总产出**:
-- 34 张数据库表（Prisma + PostgreSQL）— 含论坛5表、钱包2表、物流2表、商品收藏1表
-- 57 个 API 路由（认证、商品、订单、智能柜、书籍借阅、任务、消息、钱包、论坛、管理后台）
+- 38 张数据库表（Prisma + PostgreSQL）— 含论坛5表、钱包2表、物流2表、商品收藏1表、信用历史1表
+- 64 个 API 路由（认证、商品、订单、智能柜、书籍借阅、任务、消息、钱包、论坛、管理后台）
 - 28 个页面（首页、登录、注册、商品、订单、智能柜、任务、书籍中心、论坛、钱包、个人中心、管理后台等）
 - 种子数据（5 用户、2 柜机 20 柜格、25 本书籍、5 商品、5 任务、3 套餐、5 论坛板块）
 - 订单状态机（4 种订单类型，完整状态迁移规则）
@@ -177,4 +177,70 @@
 - 移动 3 个需求文档到 docs/（背景.txt、校园生活.txt、requirements.txt）
 - 更新 .gitignore（去重、补充 dev.db、截图规则）
 - 同步文档不一致（SQLite → PostgreSQL）
+
+### [修复] EventLog_schoolId_fkey 外键约束错误
+
+**时间**: 2026-05-29
+**问题**: `domainEvent()` 调用时未传 `schoolId`，默认用空字符串 `""` 插入 EventLog，但 School 表不存在 id 为空的记录，导致 FK 约束报错
+**修复**:
+- `prisma/schema.prisma`: EventLog.schoolId 改为可空（`String?`），外键改为可选
+- `src/lib/logger.ts`: `domainEvent()` 新增 `userId` 参数，支持自动推断 schoolId；移除空字符串兜底
+- 6 个调用方（cabinets、wallet、orders、textbooks）补传 `userId: session.userId`
+**影响**: 领域事件不再因 FK 约束失败，schoolId 正确关联到学校
+
+### [修复] 文档数据不一致修正
+
+**时间**: 2026-05-29
+**修正项**:
+- 表数量：34 → 38（新增 CreditScoreHistory、Wallet、WalletTransaction、LogisticsRoute、LogisticsNode、ForumBoard/Post/Comment/Like/Favorite、ProductFavorite）
+- API 路由数：57 → 64
+- 路由总数：85+ → 92+
+- PLAN.md 实体关系图补全所有 38 张表
+- PLAN.md 关键表清单补全 12 张缺失表
+
+### [功能] 商品交收方式选择 + 智能柜集成
+
+**时间**: 2026-05-29
+**操作**: 商品交易支持智能柜交收和面对面交易两种方式
+
+**数据模型变更**:
+- `Product` 新增 `cabinetDelivery`（Boolean）和 `faceToFaceDelivery`（Boolean）字段
+- `Order` 新增 `deliveryMethod` 字段（cabinet / face_to_face）
+
+**完整流程**:
+1. 卖家发布商品时选择支持的交收方式（至少一种，可多选）
+2. 商品详情页展示支持的交收方式，买家下单时选择
+3. 选择智能柜：买家选柜格 → 下单时柜格 empty→reserved（预留锁定）
+4. 卖家支付后"存入智能柜"：柜格 reserved→occupied，生成取件码通知买家
+5. 智能柜交收享受 2 小时 ¥0.2 交易特价（marketplaceSpecial）
+6. 面对面交易走原有物流流程
+7. 订单取消自动释放预留/占用柜格
+
+**参照模式**: 教材订阅模块的柜格预留逻辑（empty→reserved→occupied 生命周期）
+
+### [基础设施] GitNexus 代码知识图谱部署
+
+**时间**: 2026-05-31
+**操作**: 为项目部署 GitNexus 语义代码关系图
+
+**过程**:
+1. 初始版本 1.6.4-rc.44 存在 WAL 数据库损坏 bug（已知 issue #1300、#1402、#1611）
+2. 升级到 1.6.5 后问题解决
+3. 由于 LadybugDB 不支持 Windows 中文路径（项目目录名"校园生活"），通过创建纯英文路径副本完成索引
+4. 索引结果复制回项目 `.gitnexus/` 目录
+
+**产出**:
+- 索引统计：2,357 节点 / 4,682 边 / 46 聚类 / 173 流程 / 1,849 embeddings
+- 16 个自动生成的模块级 skill（`.claude/skills/generated/`）
+- MCP 注册名：`campus-life`
+
+**已知限制**:
+- LadybugDB 不支持 Windows 中文路径，MCP 查询需通过纯英文路径 junction
+- 索引基于代码快照（2026-05-31），代码变更后需重新索引
+- .gitnexus/lbug 数据库文件 67MB
+
+**相关更新**:
+- 重写 README.md（从默认模板替换为项目实际内容）
+- 重写 CLAUDE.md（添加完整项目指南）
+- 更新 AGENTS.md（追加 GitNexus 使用说明）
 

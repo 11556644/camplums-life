@@ -1,14 +1,11 @@
+import { withAuth } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { changeCredit } from "@/lib/credit";
 
 // 质检 + 消毒 + 重新上架（管理员操作）
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   const isAdmin = await db.userRole.findFirst({ where: { userId: session.userId, role: "admin" } });
   if (!isAdmin) return apiError("仅管理员可操作", 403);
 
@@ -141,4 +138,4 @@ export async function POST(req: Request) {
   });
 
   return apiSuccess({ message: "质检完成", damageFee, result });
-}
+});

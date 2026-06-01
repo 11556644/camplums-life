@@ -1,13 +1,9 @@
 export const dynamic = "force-dynamic";
+import { withAuth } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
 
-// 获取当前用户借阅的教材
-export async function GET() {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const GET = withAuth(async (_req, session) => {
   try {
     // 当前借阅中
     const borrowing = await db.textbookCopy.findMany({
@@ -51,4 +47,4 @@ export async function GET() {
   } catch {
     return apiError("获取教材信息失败", 500);
   }
-}
+});

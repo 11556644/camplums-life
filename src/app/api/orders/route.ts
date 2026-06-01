@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
+import { withAuth } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { publishEvent } from "@/lib/realtime";
@@ -16,10 +16,7 @@ const createOrderSchema = z.object({
   cabinetDuration: z.number().int().min(30).max(1440).default(120),
 });
 
-export async function GET(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const GET = withAuth(async (req, session) => {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
   const role = searchParams.get("role") || "buyer"; // buyer or seller
@@ -50,12 +47,9 @@ export async function GET(req: Request) {
   } catch (error) {
     return apiError("获取订单列表失败", 500);
   }
-}
+});
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   try {
     const body = await req.json();
     const parsed = createOrderSchema.safeParse(body);
@@ -211,4 +205,4 @@ export async function POST(req: Request) {
   } catch (error) {
     return apiError("创建订单失败", 500);
   }
-}
+});

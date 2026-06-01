@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-helpers";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { z } from "zod";
 import { broadcastEvent } from "@/lib/realtime";
@@ -134,8 +135,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
+  const session = await requireAuth(req);
 
   const { id } = await params;
   const body = await req.json();
@@ -207,8 +207,7 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
+  const session = await requireAuth(_req);
 
   const { id } = await params;
 

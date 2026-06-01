@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChatBox } from "@/components/chat-box";
+import { ChatBox } from "@/components/chat/chat-box";
 import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 const TYPE_LABELS: Record<string, { label: string; color: string }> = {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
 
 // 简易内存限流（生产环境应用 Redis）
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -29,35 +30,43 @@ const AUTH_PAGES = [
   "/subscriptions",
 ];
 
-export function middleware(request: NextRequest) {
+// JWT 验证（Edge Runtime 兼容）
+async function verifyToken(token: string): Promise<boolean> {
+  try {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return process.env.NODE_ENV !== "production";
+    await jwtVerify(token, new TextEncoder().encode(secret));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ==================== API 限流 ====================
   if (pathname.startsWith("/api/")) {
     const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
 
-    // 认证接口：5次/分钟
     if (pathname.startsWith("/api/auth/")) {
       if (!getRateLimit(`auth:${ip}`, 5, 60_000)) {
         return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
       }
     }
 
-    // 支付接口：10次/分钟
     if (pathname.startsWith("/api/wallet") || pathname.includes("/rate")) {
       if (!getRateLimit(`pay:${ip}`, 10, 60_000)) {
         return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
       }
     }
 
-    // 发布接口：20次/分钟
     if (pathname.includes("/publish")) {
       if (!getRateLimit(`publish:${ip}`, 20, 60_000)) {
         return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
       }
     }
 
-    // 通用 API：100次/分钟
     if (!getRateLimit(`api:${ip}`, 100, 60_000)) {
       return NextResponse.json({ error: "请求过于频繁，请稍后再试" }, { status: 429 });
     }
@@ -65,23 +74,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // ==================== 页面路由保护 ====================
-  // 检查是否有 auth cookie（轻量级检查，不验证 JWT）
-  const hasToken = request.cookies.has("auth_token");
+  // ==================== 页面路由保护（JWT 真实验证）====================
+  const isProtectedPage =
+    AUTH_PAGES.some(p => pathname.startsWith(p)) || pathname.startsWith("/admin");
 
-  // 需要登录的页面
-  if (AUTH_PAGES.some(p => pathname.startsWith(p))) {
-    if (!hasToken) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("from", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-  }
-
-  // 管理页面需要登录（角色检查在客户端完成）
-  if (pathname.startsWith("/admin")) {
-    if (!hasToken) {
-      return NextResponse.redirect(new URL("/login", request.url));
+  if (isProtectedPage) {
+    const token = request.cookies.get("auth_token")?.value;
+    if (!token || !(await verifyToken(token))) {
+      const response = NextResponse.redirect(new URL("/login", request.url));
+      response.cookies.delete("auth_token");
+      return response;
     }
   }
 

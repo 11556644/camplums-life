@@ -7,7 +7,7 @@ import { useAuthStore } from "@/stores/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { ChatBox } from "@/components/chat-box";
+import { ChatBox } from "@/components/chat/chat-box";
 import { useRealtime, RealtimeEvent } from "@/hooks/use-realtime";
 
 interface Conversation {

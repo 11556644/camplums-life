@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
+import { withAuth } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { generateOrderNo, ORDER_STATUS } from "@/lib/order-state-machine";
@@ -22,10 +22,7 @@ const purchaseSchema = z.object({
   floor: z.string().optional(),
 });
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   const body = await req.json();
   const parsed = purchaseSchema.safeParse(body);
   if (!parsed.success) return apiError(parsed.error.issues[0].message);
@@ -209,4 +206,4 @@ export async function POST(req: Request) {
   broadcastEvent({ type: "textbook", action: "purchased", targetId: result.order.id, userId: session.userId });
 
   return apiSuccess({ ...result.order, rentalDays, dueDate });
-}
+});

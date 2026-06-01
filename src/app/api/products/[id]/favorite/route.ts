@@ -1,14 +1,12 @@
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-helpers";
 import { apiSuccess, apiError } from "@/lib/api-response";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+  const session = await requireAuth(req);
   const { id } = await params;
 
   try {

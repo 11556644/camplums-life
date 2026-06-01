@@ -1,5 +1,5 @@
+import { withAuth } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { getCreditPermissions } from "@/lib/credit";
@@ -18,10 +18,7 @@ const schema = z.object({
   executionMinutes: z.number().int().min(30).max(1440).default(120),
 });
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) return apiError(parsed.error.issues[0].message);
@@ -129,4 +126,4 @@ export async function POST(req: Request) {
   });
 
   return apiSuccess({ task: result.task, prepaid: budget, balance: result.newBalance });
-}
+});

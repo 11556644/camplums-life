@@ -1,15 +1,10 @@
 export const dynamic = "force-dynamic";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-import { apiSuccess, apiError } from "@/lib/api-response";
+import { withAdmin } from "@/lib/api-helpers";
+import { apiSuccess } from "@/lib/api-response";
+import type { JwtPayload } from "@/lib/auth";
 
-export async function GET(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
-  const isAdmin = await db.userRole.findFirst({ where: { userId: session.userId, role: "admin" } });
-  if (!isAdmin) return apiError("无权限", 403);
-
+export const GET = withAdmin(async (req: Request, session: JwtPayload) => {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") || "active";
 
@@ -26,4 +21,4 @@ export async function GET(req: Request) {
   });
 
   return apiSuccess(products);
-}
+});

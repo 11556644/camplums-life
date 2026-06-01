@@ -1,5 +1,5 @@
 import { writeFile, mkdir } from "fs/promises";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/api-helpers";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { getUploadDir, getUploadUrl } from "@/lib/upload-path";
 
@@ -12,10 +12,7 @@ const ALLOWED_TYPES: Record<string, string> = {
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
@@ -51,4 +48,4 @@ export async function POST(req: Request) {
   } catch {
     return apiError("上传失败", 500);
   }
-}
+});

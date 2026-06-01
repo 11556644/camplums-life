@@ -1,18 +1,18 @@
+import { withAuth } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { ORDER_STATUS } from "@/lib/order-state-machine";
 import { changeCredit } from "@/lib/credit";
 import { broadcastEvent } from "@/lib/realtime";
+import { textbookReturnSchema } from "@/lib/schemas";
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   const body = await req.json();
-  const { copyId } = body;
-  if (!copyId) return apiError("缺少副本ID");
+  const parsed = textbookReturnSchema.safeParse(body);
+  if (!parsed.success) return apiError(parsed.error.issues[0].message);
+
+  const { copyId } = parsed.data;
 
   const copy = await db.textbookCopy.findUnique({
     where: { id: copyId },
@@ -192,4 +192,4 @@ export async function POST(req: Request) {
     lateFee: result.lateFee,
     overdueDays: result.overdueDays,
   });
-}
+});

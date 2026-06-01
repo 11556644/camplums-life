@@ -1,20 +1,18 @@
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { requireAdmin } from "@/lib/api-helpers";
 import { auditLog } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { adminCabinetActionSchema } from "@/lib/schemas";
 
 // 管理员操作柜格
 export async function PATCH(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
-  const isAdmin = await db.userRole.findFirst({ where: { userId: session.userId, role: "admin" } });
-  if (!isAdmin) return apiError("无权限", 403);
+  const session = await requireAdmin(req);
 
   const body = await req.json();
-  const { slotId, action, reason } = body; // action: release, fault, repair, open
+  const parsed = adminCabinetActionSchema.safeParse(body);
+  if (!parsed.success) return apiError(parsed.error.issues[0].message);
 
-  if (!slotId || !action) return apiError("缺少参数");
+  const { slotId, action, reason } = parsed.data;
 
   const slot = await db.cabinetSlot.findUnique({
     where: { id: slotId },
@@ -24,7 +22,6 @@ export async function PATCH(req: Request) {
 
   try {
     if (action === "release") {
-      // 强制释放柜格
       await db.$transaction(async (tx: any) => {
         await tx.cabinetSlot.update({ where: { id: slotId }, data: { status: "empty" } });
         await tx.cabinetSlotOrder.updateMany({
@@ -40,7 +37,6 @@ export async function PATCH(req: Request) {
     }
 
     if (action === "fault") {
-      // 标记故障
       await db.$transaction(async (tx: any) => {
         await tx.cabinetSlot.update({ where: { id: slotId }, data: { status: "fault" } });
         await tx.cabinetSlotLog.create({
@@ -52,7 +48,6 @@ export async function PATCH(req: Request) {
     }
 
     if (action === "repair") {
-      // 修复完成
       await db.$transaction(async (tx: any) => {
         await tx.cabinetSlot.update({ where: { id: slotId }, data: { status: "empty" } });
         await tx.cabinetSlotLog.create({
@@ -64,7 +59,6 @@ export async function PATCH(req: Request) {
     }
 
     if (action === "open") {
-      // 远程开柜（模拟）
       await db.cabinetSlotLog.create({
         data: { slotId, action: "open", operatorId: session.userId, detail: `管理员远程开柜：${reason || ""}` },
       });

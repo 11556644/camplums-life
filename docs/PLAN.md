@@ -69,21 +69,35 @@ School ──< User ──< Role
   │        │      │
   │        │      ├──< Payment
   │        │      ├──< Rating
-  │        │      └──< Dispute
+  │        │      ├──< Dispute
+  │        │      └──< LogisticsRoute ──< LogisticsNode
   │        │
-  │        ├──< Product (商品)
+  │        ├──< Product (商品) ──< ProductFavorite
   │        ├──< Task (任务/服务)
   │        │
   │        ├──< Subscription ──< SubscriptionOrder
   │        │
-  │        ├──< CreditScore
+  │        ├──< CreditScore ──< CreditScoreHistory
+  │        ├──< Wallet ──< WalletTransaction
   │        └──< Message
   │
   ├──< Cabinet ──< CabinetSlot ──< CabinetSlotLog
+  │                      │
+  │                      └──< CabinetSlotOrder
   │
   ├──< Textbook ──< TextbookCopy
+  │                   │
+  │                   ├──< InventoryTransaction
+  │                   └──< InspectionRecord
   │
-  └──< SchoolConfig
+  ├──< ForumBoard ──< ForumPost ──< ForumComment
+  │                       │
+  │                       ├──< ForumLike
+  │                       └──< ForumFavorite
+  │
+  ├──< SchoolConfig
+  ├──< AuditLog
+  └──< EventLog
 ```
 
 ### 关键表清单
@@ -111,9 +125,20 @@ School ──< User ──< Role
 | rating | 评价 | id, order_id, rater_id, ratee_id, score, content |
 | dispute | 投诉/纠纷 | id, order_id, initiator_id, reason, status, resolution |
 | credit_score | 信用分 | user_id, score, updated_at |
+| credit_score_history | 信用分变更记录 | user_id, delta, reason, source |
 | message | 站内消息 | id, sender_id, receiver_id, type, content, read_at |
-| audit_log | 审计日志 | id, user_id, action, target_type, target_id, detail, ip |
-| event_log | 领域事件 | id, event_type, aggregate_type, aggregate_id, payload |
+| wallet | 钱包 | id, user_id, school_id, balance, frozen |
+| wallet_transaction | 钱包流水 | id, wallet_id, type, amount, order_id, method, status |
+| logistics_route | 物流路线 | id, order_id, status, current_node |
+| logistics_node | 物流节点 | id, route_id, node_name, sequence, status |
+| forum_board | 论坛板块 | id, school_id, name, description |
+| forum_post | 论坛帖子 | id, board_id, author_id, title, content |
+| forum_comment | 论坛评论 | id, post_id, author_id, content |
+| forum_like | 帖子点赞 | id, post_id, user_id |
+| forum_favorite | 帖子收藏 | id, post_id, user_id |
+| product_favorite | 商品收藏 | id, product_id, user_id |
+| audit_log | 审计日志 | id, user_id, school_id, action, target_type, target_id, detail, ip |
+| event_log | 领域事件 | id, school_id, event_type, aggregate_type, aggregate_id, payload |
 | school_config | 学校配置 | school_id, key, value |
 
 ## 五、执行分阶段计划

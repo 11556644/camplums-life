@@ -1,13 +1,8 @@
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
 import { apiSuccess, apiError } from "@/lib/api-response";
 
-export async function GET() {
-  const session = await getSession();
-  if (!session) {
-    return apiError("未登录", 401);
-  }
-
+export const GET = withAuth(async (_req, session) => {
   const user = await db.user.findUnique({
     where: { id: session.userId },
     include: {
@@ -37,4 +32,4 @@ export async function GET() {
     school: user.school,
     createdAt: user.createdAt,
   });
-}
+});

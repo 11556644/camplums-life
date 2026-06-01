@@ -1,9 +1,10 @@
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/api-helpers";
 import { auditLog, domainEvent } from "@/lib/logger";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { canTransition, ORDER_STATUS } from "@/lib/order-state-machine";
 import { onPaymentSettled } from "@/lib/settlement";
+import { walletTopupSchema, walletPaySchema, walletRefundSchema } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +12,7 @@ export const dynamic = "force-dynamic";
 const ALLOWED_TOPUP_AMOUNTS = [10, 20, 50, 100, 200, 500];
 const MAX_TOPUP_PER_DAY = 2000;
 
-export async function GET() {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const GET = withAuth(async (req, session) => {
   let wallet = await db.wallet.findUnique({
     where: { userId: session.userId },
     include: { transactions: { orderBy: { createdAt: "desc" }, take: 20 } },
@@ -29,24 +27,26 @@ export async function GET() {
   }
 
   return apiSuccess(wallet);
-}
+});
 
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   const currentUser = await db.user.findUnique({ where: { id: session.userId }, select: { schoolId: true } });
   const schoolId = currentUser?.schoolId || session.schoolId || "";
 
   const body = await req.json();
-  const { action, amount, method, orderId } = body;
+  const { action } = body;
 
   // === 充值 ===
   if (action === "topup") {
-    if (!amount || !ALLOWED_TOPUP_AMOUNTS.includes(amount)) {
+    const parsed = walletTopupSchema.safeParse(body);
+    if (!parsed.success) return apiError(parsed.error.issues[0].message);
+
+    const { amount, method } = parsed.data;
+
+    // 额外业务校验：充值金额必须在允许列表中
+    if (!ALLOWED_TOPUP_AMOUNTS.includes(amount)) {
       return apiError(`充值金额必须是以下之一：${ALLOWED_TOPUP_AMOUNTS.join(", ")}`);
     }
-    if (!["wechat", "alipay"].includes(method)) return apiError("支付方式无效");
 
     // 每日充值限额检查
     const today = new Date();
@@ -84,8 +84,10 @@ export async function POST(req: Request) {
 
   // === 支付 ===
   if (action === "pay") {
-    if (!amount || amount <= 0) return apiError("支付金额无效");
-    if (!orderId) return apiError("缺少订单ID");
+    const parsed = walletPaySchema.safeParse(body);
+    if (!parsed.success) return apiError(parsed.error.issues[0].message);
+
+    const { amount, orderId } = parsed.data;
 
     const order = await db.order.findUnique({ where: { id: orderId } });
     if (!order) return apiError("订单不存在");
@@ -95,7 +97,6 @@ export async function POST(req: Request) {
 
     // 余额检查 + 扣款在事务内原子完成（防竞态）
     const result = await db.$transaction(async (tx: any) => {
-      // SELECT FOR UPDATE 等效：用 update 的 where 条件做原子检查
       const w = await tx.wallet.findUnique({ where: { userId: session.userId } });
       if (!w || w.balance < amount) return null;
 
@@ -116,7 +117,6 @@ export async function POST(req: Request) {
           paidAt: new Date(),
         },
       });
-      // 统一支付后副作用（订阅激活、柜格升级、任务跳转、通知）
       const paidOrder = await tx.order.findUnique({ where: { id: orderId } });
       if (paidOrder) await onPaymentSettled({ tx, order: paidOrder, userId: session.userId });
       return newBalance;
@@ -129,8 +129,10 @@ export async function POST(req: Request) {
 
   // === 退款（仅系统内部调用，需关联有效订单） ===
   if (action === "refund") {
-    if (!orderId) return apiError("退款必须关联订单");
-    if (!amount || amount <= 0) return apiError("退款金额无效");
+    const parsed = walletRefundSchema.safeParse(body);
+    if (!parsed.success) return apiError(parsed.error.issues[0].message);
+
+    const { orderId, amount } = parsed.data;
 
     const order = await db.order.findUnique({ where: { id: orderId } });
     if (!order) return apiError("订单不存在");
@@ -165,4 +167,4 @@ export async function POST(req: Request) {
   }
 
   return apiError("无效操作");
-}
+});

@@ -1,13 +1,11 @@
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/api-helpers";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { publishEvent } from "@/lib/realtime";
+import { sendMessageSchema } from "@/lib/schemas";
 
 // 获取与某人的聊天记录
-export async function GET(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const GET = withAuth(async (req, session) => {
   const { searchParams } = new URL(req.url);
   const otherUserId = searchParams.get("userId");
   if (!otherUserId) return apiError("缺少 userId");
@@ -25,17 +23,15 @@ export async function GET(req: Request) {
   });
 
   return apiSuccess(messages);
-}
+});
 
 // 发送消息（支持文字和图片）
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return apiError("请先登录", 401);
-
+export const POST = withAuth(async (req, session) => {
   const body = await req.json();
-  const { receiverId, content, images, orderId, productId } = body;
-  if (!receiverId) return apiError("缺少 receiverId");
-  if (!content?.trim() && (!images || images.length === 0)) return apiError("消息内容不能为空");
+  const parsed = sendMessageSchema.safeParse(body);
+  if (!parsed.success) return apiError(parsed.error.issues[0].message);
+
+  const { receiverId, content, images, orderId, productId } = parsed.data;
 
   const user = await db.user.findUnique({ where: { id: session.userId } });
   if (!user) return apiError("用户不存在");
@@ -56,7 +52,6 @@ export async function POST(req: Request) {
     },
   });
 
-  // 实时推送给接收者（携带完整消息体，客户端无需再请求）
   publishEvent({
     type: "message",
     action: "new_message",
@@ -66,4 +61,4 @@ export async function POST(req: Request) {
   }, [receiverId]);
 
   return apiSuccess(message);
-}
+});

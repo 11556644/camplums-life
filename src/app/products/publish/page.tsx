@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PhotoUpload } from "@/components/photo-upload";
+import { PhotoUpload } from "@/components/upload/photo-upload";
 import { toast } from "sonner";
 
 const CATEGORIES = [
