@@ -60,7 +60,7 @@ export function Navbar() {
   }, [user]);
 
   // SSE 实时更新未读数
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const handleRealtime = useCallback((event: { type: string; action: string; data?: Record<string, unknown> }) => {
     if (event.type === "message") {
       clearTimeout(debounceRef.current);
