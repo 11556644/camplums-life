@@ -84,8 +84,12 @@ export async function changeCredit({ userId, schoolId, delta, reason, source, or
   }
 
   const result = await db.$transaction(async (tx: any) => {
-    const cs = await tx.creditScore.findUnique({ where: { userId } });
-    if (!cs) return null;
+    let cs = await tx.creditScore.findUnique({ where: { userId } });
+    if (!cs) {
+      cs = await tx.creditScore.create({
+        data: { userId, schoolId, score: 600, tier: "good", totalOrders: 0, monthlyOrders: 0 },
+      });
+    }
 
     const before = cs.score;
     const after = Math.max(0, Math.min(1000, before + delta));

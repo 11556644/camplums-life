@@ -60,16 +60,20 @@ export async function POST(req: Request) {
           }
 
           if (sellerWallet.balance >= newCharge) {
-            // 扣费成功，延长 expiresAt 1 小时
-            const newBal = sellerWallet.balance - newCharge;
-            await db.wallet.update({ where: { id: sellerWallet.id }, data: { balance: newBal } });
-            await db.walletTransaction.create({
+            // 扣费成功，延长 expiresAt 1 小时（事务内操作防 TOCTOU）
+            await db.$transaction(async (tx) => {
+              const freshWallet = await tx.wallet.findUnique({ where: { id: sellerWallet.id } });
+              if (!freshWallet || freshWallet.balance < newCharge) return;
+              const newBal = freshWallet.balance - newCharge;
+              await tx.wallet.update({ where: { id: freshWallet.id }, data: { balance: newBal } });
+              await tx.walletTransaction.create({
               data: {
                 walletId: sellerWallet.id, type: "overtime_fee", amount: -newCharge,
                 balanceBefore: sellerWallet.balance, balanceAfter: newBal,
                 orderId: binding.orderId, method: "wallet", status: "success",
               },
-            });
+              });
+            }); // end 
 
             // 延长 1 小时
             const newExpiry = new Date(now.getTime() + 60 * 60 * 1000);

@@ -265,8 +265,10 @@ export function calculateCabinetFee(minutes: number, prepaidMinutes: number = 0,
 export function calculateTradeDeliveryFee(durationMinutes: number): { sellerPays: number; buyerPays: number } {
   const opt = CABINET_PRICING.tradeDurationOptions.find(o => o.minutes === durationMinutes);
   if (opt) return { sellerPays: opt.sellerPays, buyerPays: opt.buyerPays };
-  // 默认按 2 小时
-  return { sellerPays: 0.2, buyerPays: 0 };
+  // 按阶梯计算：找到最近的较大时长档
+  const sorted = [...CABINET_PRICING.tradeDurationOptions].sort((a, b) => a.minutes - b.minutes);
+  const matched = sorted.find(o => durationMinutes <= o.minutes) || sorted[sorted.length - 1];
+  return { sellerPays: matched.sellerPays, buyerPays: matched.buyerPays };
 }
 
 /**
