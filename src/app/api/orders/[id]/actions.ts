@@ -23,7 +23,7 @@ async function executePayAction(
     data: {
       orderId: order.id,
       amount: order.totalAmount,
-      method: method || "mock",
+      method: method || (process.env.NODE_ENV === "production" ? "pending" : "mock"),
       status: "success",
       transactionId: `PAY_${crypto.randomUUID()}`,
       paidAt: new Date(),
@@ -67,9 +67,6 @@ async function executeCabinetShip(tx: any, order: any) {
     include: { slot: { include: { cabinet: true } } },
   });
   if (!binding) {
-    console.error(
-      `[cabinet-ship] No active binding for order ${order.id}, deliveryMethod=${order.deliveryMethod}`
-    );
     throw new Error(
       "未找到预留柜格，该订单的柜格绑定可能已丢失，请取消订单后重新下单"
     );
@@ -89,10 +86,6 @@ async function executeCabinetShip(tx: any, order: any) {
   const sellerFee = feeSplit.sellerPays;
   const expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000);
 
-  console.log(
-    `[cabinet-ship] Order ${order.orderNo}: binding=${binding.id}, slot=${binding.slotId}(${currentSlot.status}), duration=${durationMinutes}min, sellerFee=¥${sellerFee}`
-  );
-
   if (sellerFee > 0) {
     let sellerWallet = await tx.wallet.findUnique({
       where: { userId: order.sellerId },
@@ -103,10 +96,7 @@ async function executeCabinetShip(tx: any, order: any) {
       });
     }
     if (sellerWallet.balance < sellerFee) {
-      console.error(
-        `[cabinet-ship] Seller wallet insufficient: need ¥${sellerFee}, have ¥${sellerWallet.balance}, seller=${order.sellerId}`
-      );
-      throw new Error(
+          throw new Error(
         `钱包余额不足，需要 ¥${sellerFee}，当前余额 ¥${sellerWallet.balance}。请先充值后再存入。`
       );
     }
@@ -319,14 +309,17 @@ export async function runOrderTransaction(
   userId: string,
   action: string,
   method?: string
-): Promise<ActionResult | { error: string } | null> {
+): Promise<ActionResult | { error: string }> {
   return db.$transaction(async (tx: any) =>
     executeOrderAction(tx, orderId, userId, action, method)
   ).catch((err: Error) => {
-    if (err.message === "NOT_FOUND") return null;
-    if (err.message.startsWith("ONLY_") || err.message === "NO_PERMISSION")
-      return null;
-    if (err.message.startsWith("STATUS_INVALID")) return null;
+    if (err.message === "NOT_FOUND") return { error: "订单不存在" };
+    if (err.message === "ONLY_BUYER_PAY") return { error: "只有买家可以支付" };
+    if (err.message === "ONLY_SELLER_SHIP") return { error: "只有卖家可以发货" };
+    if (err.message === "ONLY_SELLER_DELIVER") return { error: "只有卖家可以确认送达" };
+    if (err.message === "ONLY_BUYER_COMPLETE") return { error: "只有买家可以确认完成" };
+    if (err.message === "NO_PERMISSION") return { error: "无权执行此操作" };
+    if (err.message.startsWith("STATUS_INVALID")) return { error: "订单状态不允许此操作" };
     if (
       err.message.includes("柜格") ||
       err.message.includes("预留") ||

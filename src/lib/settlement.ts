@@ -78,10 +78,11 @@ export async function onPaymentSettled({ tx, order, userId }: SettleContext) {
   });
   for (const binding of bindings) {
     if (order.orderType === "product") continue; // 商品交易：保持 reserved，等卖家发货时变 occupied
-    await tx.cabinetSlot.update({
+    const slotUpdated = await tx.cabinetSlot.updateMany({
       where: { id: binding.slotId, status: "reserved" },
       data: { status: "occupied" },
     });
+    if (slotUpdated.count === 0) continue; // 柜格已被释放/占用，跳过
     await tx.cabinetSlotLog.create({
       data: {
         slotId: binding.slotId,

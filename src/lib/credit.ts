@@ -77,12 +77,6 @@ interface CreditChangeParams {
  * 4. 月度订单积分上限
  */
 export async function changeCredit({ userId, schoolId, delta, reason, source, orderId }: CreditChangeParams) {
-  // 月度积分上限检查（仅正向订单积分）
-  if (source === "order" && delta > 0) {
-    const cs = await db.creditScore.findUnique({ where: { userId } });
-    if (cs && cs.monthlyOrders >= 4) return cs.score; // 每月最多 +20（4 × 5）
-  }
-
   const result = await db.$transaction(async (tx: any) => {
     let cs = await tx.creditScore.findUnique({ where: { userId } });
     if (!cs) {
@@ -90,6 +84,9 @@ export async function changeCredit({ userId, schoolId, delta, reason, source, or
         data: { userId, schoolId, score: 600, tier: "good", totalOrders: 0, monthlyOrders: 0 },
       });
     }
+
+    // 月度积分上限检查（仅正向订单积分，在事务内防并发突破）
+    if (source === "order" && delta > 0 && cs.monthlyOrders >= 4) return cs.score;
 
     const before = cs.score;
     const after = Math.max(0, Math.min(1000, before + delta));
