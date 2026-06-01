@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   let isAuthorized = false;
   if (isAdminRequest) {
     const { getSession } = await import("@/lib/auth");
-    const session = await getSession(req);
+    const session = await getSession();
     if (session && session.roles.includes("admin")) isAuthorized = true;
   }
   if (!isAuthorized) {
