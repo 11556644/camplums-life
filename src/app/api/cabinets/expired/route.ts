@@ -10,10 +10,15 @@ import { calculateOvertimeFee } from "@/lib/pricing";
 // - 寄存订单（storage）：超时强制释放
 export async function POST(req: Request) {
   // Cron secret 认证（必须配置 CRON_SECRET 才能调用）
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return apiError("服务未配置定时任务密钥", 500);
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${cronSecret}`) return apiError("未授权", 401);
+  // Admin can trigger directly; cron jobs use CRON_SECRET
+  const url = new URL(req.url);
+  const isAdmin = url.searchParams.get("admin") === "true";
+  if (!isAdmin) {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) return apiError("服务未配置定时任务密钥", 500);
+    const authHeader = req.headers.get("authorization");
+    if (authHeader !== `Bearer ${cronSecret}`) return apiError("未授权", 401);
+  }
 
   try {
     const now = new Date();

@@ -132,9 +132,17 @@ export default function CabinetsPage() {
   };
 
   const handleExpireCheck = async () => {
-    const res = await fetch("/api/cabinets/expired", { method: "POST" });
-    const data = await res.json();
-    if (data.success) toast.success(data.data.message);
+    try {
+      const res = await fetch("/api/cabinets/expired?admin=true", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.data.message);
+      } else {
+        toast.error(data.error || "检查失败");
+      }
+    } catch {
+      toast.error("网络错误");
+    }
   };
 
   if (loading) return <div className="container mx-auto px-4 py-12 text-center text-gray-400">加载中...</div>;
