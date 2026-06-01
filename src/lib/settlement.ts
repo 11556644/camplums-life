@@ -287,7 +287,7 @@ export async function onOrderCancelled({ tx, order, userId, prevStatus }: Settle
     data: {
       schoolId: order.schoolId, receiverId: otherId,
       type: "notification", title: "订单已取消",
-      content: `订单 ${order.orderNo} 已被取消。${order.status === ORDER_STATUS.PAID ? "款项已退还到钱包。" : ""}`,
+      content: `订单 ${order.orderNo} 已被取消。${(prevStatus || order.status) === ORDER_STATUS.PAID ? "款项已退还到钱包。" : ""}`,
     },
   });
 }
