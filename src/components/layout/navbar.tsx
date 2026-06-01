@@ -60,11 +60,11 @@ export function Navbar() {
   }, [user]);
 
   // SSE 实时更新未读数
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const debounceRef = useRef<number | undefined>(undefined);
   const handleRealtime = useCallback((event: { type: string; action: string; data?: Record<string, unknown> }) => {
     if (event.type === "message") {
       clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
+      debounceRef.current = window.setTimeout(() => {
         fetch("/api/messages/unread")
           .then(r => r.json())
           .then(d => { if (d.success) setUnread(d.data); })
