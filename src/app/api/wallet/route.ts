@@ -137,6 +137,7 @@ export const POST = withAuth(async (req, session) => {
     const order = await db.order.findUnique({ where: { id: orderId } });
     if (!order) return apiError("订单不存在");
     if (order.buyerId !== session.userId) return apiError("无权退款此订单");
+    if (order.status !== ORDER_STATUS.PAID) return apiError("订单状态不允许退款（当前：" + order.status + "）");
     if (amount > order.totalAmount) return apiError("退款金额不能超过订单金额");
 
     // 事务内：重复检查 + 余额更新 + 记录（防 TOCTOU）
