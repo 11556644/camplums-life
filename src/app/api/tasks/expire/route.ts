@@ -8,12 +8,11 @@ const PAYMENT_TIMEOUT_MS = 30 * 60 * 1000; // 30 分钟
 const PUBLISHER_CONFIRM_TIMEOUT_MS = 30 * 60 * 1000; // 30 分钟
 
 export async function POST(req: Request) {
-  // Cron secret 认证
+  // Cron secret 认证（必须配置 CRON_SECRET 才能调用）
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${cronSecret}`) return apiError("未授权", 401);
-  }
+  if (!cronSecret) return apiError("服务未配置定时任务密钥", 500);
+  const authHeader = req.headers.get("authorization");
+  if (authHeader !== `Bearer ${cronSecret}`) return apiError("未授权", 401);
 
   const now = new Date();
   let autoCancelled = 0;
