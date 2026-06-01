@@ -28,6 +28,7 @@ export function SSEProvider({ children }: { children: React.ReactNode }) {
   const esRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closedRef = useRef(false);
+  const reconnectAttemptsRef = useRef(0);
 
   const subscribe = useCallback((handler: EventHandler) => {
     handlersRef.current.add(handler);
@@ -69,7 +70,9 @@ export function SSEProvider({ children }: { children: React.ReactNode }) {
         es.close();
         setConnected(false);
         if (!closedRef.current) {
-          reconnectTimerRef.current = setTimeout(connect, 3000);
+          const delay = Math.min(3000 * Math.pow(2, reconnectAttemptsRef.current || 0), 30000) + Math.random() * 1000;
+          reconnectAttemptsRef.current = (reconnectAttemptsRef.current || 0) + 1;
+          reconnectTimerRef.current = setTimeout(connect, delay);
         }
       };
     }

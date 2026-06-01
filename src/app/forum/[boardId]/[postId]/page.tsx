@@ -109,8 +109,8 @@ export default function PostDetailPage() {
       });
       const data = await res.json();
       if (data.success !== false) {
-        setLiked(data.liked);
-        setLikeCount(data.likeCount);
+        setLiked(data.data.liked);
+        setLikeCount(data.data.likeCount);
       }
     } catch {
       toast.error("操作失败");
@@ -128,8 +128,8 @@ export default function PostDetailPage() {
       });
       const data = await res.json();
       if (data.success !== false) {
-        setFavorited(data.favorited);
-        toast.success(data.favorited ? "已收藏" : "已取消收藏");
+        setFavorited(data.data.favorited);
+        toast.success(data.data.favorited ? "已收藏" : "已取消收藏");
       }
     } catch {
       toast.error("操作失败");

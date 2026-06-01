@@ -85,6 +85,7 @@ export default function LoginPage() {
               立即注册
             </Link>
           </div>
+          {process.env.NODE_ENV !== "production" && (
           <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
             <p className="font-medium mb-1">测试账号（密码均为 123456）：</p>
             <p>管理员：13800000001</p>
@@ -93,6 +94,7 @@ export default function LoginPage() {
             <p>楼长：13800000004</p>
             <p>技能达人：13800000005</p>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

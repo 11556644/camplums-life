@@ -49,9 +49,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchUser();
   }, [fetchUser]);
 
-  if (loading) {
-    return <AuthSkeleton />;
-  }
-
-  return <>{children}</>;
+  return (
+    <>
+      {loading && (
+        <div className="fixed top-0 left-0 right-0 z-[60] h-0.5">
+          <div className="h-full bg-blue-500 animate-pulse" style={{width: "40%"}} />
+        </div>
+      )}
+      {children}
+    </>
+  );
 }

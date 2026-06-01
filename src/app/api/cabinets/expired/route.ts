@@ -10,10 +10,16 @@ import { calculateOvertimeFee } from "@/lib/pricing";
 // - 寄存订单（storage）：超时强制释放
 export async function POST(req: Request) {
   // Cron secret 认证（必须配置 CRON_SECRET 才能调用）
-  // Admin can trigger directly; cron jobs use CRON_SECRET
+  // Admin can trigger via session; cron jobs use CRON_SECRET
   const url = new URL(req.url);
-  const isAdmin = url.searchParams.get("admin") === "true";
-  if (!isAdmin) {
+  const isAdminRequest = url.searchParams.get("admin") === "true";
+  let isAuthorized = false;
+  if (isAdminRequest) {
+    const { getSession } = await import("@/lib/auth");
+    const session = await getSession(req);
+    if (session && session.roles.includes("admin")) isAuthorized = true;
+  }
+  if (!isAuthorized) {
     const cronSecret = process.env.CRON_SECRET;
     if (!cronSecret) return apiError("服务未配置定时任务密钥", 500);
     const authHeader = req.headers.get("authorization");
@@ -78,26 +84,25 @@ export async function POST(req: Request) {
                 orderId: binding.orderId, method: "wallet", status: "success",
               },
               });
-            }); // end 
+              // 延长 1 小时（事务内，与扣费原子化）
+              const newExpiry = new Date(now.getTime() + 60 * 60 * 1000);
+              await tx.cabinetSlotOrder.update({
+                where: { id: binding.id },
+                data: {
+                  expiresAt: newExpiry,
+                  prepaidFee: totalDue,
+                },
+              });
 
-            // 延长 1 小时
-            const newExpiry = new Date(now.getTime() + 60 * 60 * 1000);
-            await db.cabinetSlotOrder.update({
-              where: { id: binding.id },
-              data: {
-                expiresAt: newExpiry,
-                prepaidFee: totalDue,
-              },
-            });
-
-            await db.cabinetSlotLog.create({
-              data: {
-                slotId: binding.slotId,
-                action: "overtime_charged",
-                operatorId: binding.depositorId,
-                detail: `超时${overtimeMinutes}分钟，扣费¥${newCharge}，延长至${newExpiry.toLocaleTimeString("zh-CN")}，累计费用¥${totalDue}`,
-              },
-            });
+              await tx.cabinetSlotLog.create({
+                data: {
+                  slotId: binding.slotId,
+                  action: "overtime_charged",
+                  operatorId: binding.depositorId,
+                  detail: `超时${overtimeMinutes}分钟，扣费¥${newCharge}，延长至${newExpiry.toLocaleTimeString("zh-CN")}，累计费用¥${totalDue}`,
+                },
+              });
+            }); // end transaction
 
             // 通知卖家
             await db.message.create({

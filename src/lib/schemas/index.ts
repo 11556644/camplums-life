@@ -25,7 +25,7 @@ export const cabinetDepositSchema = z.object({
   slotId: z.string().min(1, "缺少柜格 ID"),
   depositType: z.enum(["trade", "storage"]),
   orderId: z.string().optional(),
-  photo: z.string().optional(),
+  photo: z.string().nullish(),
   durationMinutes: z.number().int().positive().optional(),
 });
 

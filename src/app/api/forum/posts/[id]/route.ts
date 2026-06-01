@@ -108,7 +108,7 @@ export async function GET(
       ...post,
       images: post.images ? JSON.parse(post.images) : [],
       author: post.isAnonymous ? ANONYMOUS_AUTHOR : post.author,
-      viewCount: post.viewCount + 1,
+      viewCount: post.viewCount,
       isLiked,
       isFavorited,
       comments: post.comments.map((comment) => {

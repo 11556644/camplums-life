@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth";
@@ -14,6 +14,36 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+
+function MobileMenu() {
+  const [open, setOpen] = useState(false);
+  const links = [
+    { href: "/products", label: "闲置市场" },
+    { href: "/tasks", label: "自由市场" },
+    { href: "/cabinets", label: "智能柜" },
+    { href: "/textbooks", label: "书籍订阅" },
+    { href: "/forum", label: "校园贴吧" },
+  ];
+  return (
+    <div className="lg:hidden ml-auto">
+      <button onClick={() => setOpen(!open)} className="p-2 text-muted-foreground hover:text-primary" aria-label="菜单">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {open ? <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></> : <><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></>}
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-14 left-0 right-0 glass-card border-b border-glass-border shadow-lg z-50">
+          <nav className="flex flex-col p-4 space-y-3 text-sm font-semibold">
+            {links.map(l => (
+              <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className="text-muted-foreground hover:text-primary py-1">{l.label}</Link>
+            ))}
+          </nav>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Navbar() {
   const { user, loading, logout } = useAuthStore();
@@ -30,12 +60,16 @@ export function Navbar() {
   }, [user]);
 
   // SSE 实时更新未读数
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const handleRealtime = useCallback((event: { type: string; action: string; data?: Record<string, unknown> }) => {
     if (event.type === "message") {
-      fetch("/api/messages/unread")
-        .then(r => r.json())
-        .then(d => { if (d.success) setUnread(d.data); })
-        .catch(() => {});
+      clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        fetch("/api/messages/unread")
+          .then(r => r.json())
+          .then(d => { if (d.success) setUnread(d.data); })
+          .catch(() => {});
+      }, 500);
     }
   }, []);
 
@@ -70,6 +104,9 @@ export function Navbar() {
           <Link href="/textbooks" className="text-muted-foreground hover:text-primary transition-colors">书籍订阅</Link>
         </nav>
 
+        {/* Mobile hamburger */}
+        <MobileMenu />
+
         <div className="ml-auto flex items-center space-x-3">
           <Link href="/forum" className="text-sm font-semibold tracking-tight text-muted-foreground hover:text-primary transition-colors">校园贴吧</Link>
           <div className="h-5 w-px bg-border" />
@@ -102,18 +139,18 @@ export function Navbar() {
                     <p className="text-xs text-gray-500">{user.roles.join(", ")}</p>
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => router.push("/profile")}>我的</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/orders")}>我的订单</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/wallet")}>我的钱包</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/chats")}>
+                  <DropdownMenuItem onSelect={() => router.push("/profile")}>我的</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => router.push("/orders")}>我的订单</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => router.push("/wallet")}>我的钱包</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => router.push("/chats")}>
                     聊天{unread.chats > 0 && <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5">{unread.chats}</span>}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/messages")}>
+                  <DropdownMenuItem onSelect={() => router.push("/messages")}>
                     消息通知{unread.messages > 0 && <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5">{unread.messages}</span>}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/disputes")}>投诉记录</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => router.push("/disputes")}>投诉记录</DropdownMenuItem>
                   {user.roles.includes("admin") && (
-                    <DropdownMenuItem onClick={() => router.push("/admin")}>运营后台</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => router.push("/admin")}>运营后台</DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={logout} variant="destructive">退出登录</DropdownMenuItem>
