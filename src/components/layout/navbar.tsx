@@ -139,18 +139,18 @@ export function Navbar() {
                     <p className="text-xs text-gray-500">{user.roles.join(", ")}</p>
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => router.push("/profile")}>我的</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => router.push("/orders")}>我的订单</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => router.push("/wallet")}>我的钱包</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => router.push("/chats")}>
+                  <DropdownMenuItem onClick={() => router.push("/profile")}>我的</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/orders")}>我的订单</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/wallet")}>我的钱包</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/chats")}>
                     聊天{unread.chats > 0 && <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5">{unread.chats}</span>}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => router.push("/messages")}>
+                  <DropdownMenuItem onClick={() => router.push("/messages")}>
                     消息通知{unread.messages > 0 && <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5">{unread.messages}</span>}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => router.push("/disputes")}>投诉记录</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/disputes")}>投诉记录</DropdownMenuItem>
                   {user.roles.includes("admin") && (
-                    <DropdownMenuItem onSelect={() => router.push("/admin")}>运营后台</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push("/admin")}>运营后台</DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={logout} variant="destructive">退出登录</DropdownMenuItem>
